@@ -1,561 +1,1008 @@
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Map as MapLibreMap,
   NavigationControl,
+  AttributionControl,
   setWorkerUrl,
-} from 'maplibre-gl'
+} from "maplibre-gl";
 
-import 'maplibre-gl/dist/maplibre-gl.css'
-import { summary } from '../data/mock.js'
-import { reportPoints as mockReportPoints, TYPES } from '../data/reportPoints.js'
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
-// Vite environment variables
+import "maplibre-gl/dist/maplibre-gl.css";
 
-const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY
-const API_KEY = import.meta.env.VITE_API_KEY
-const REPORTS_API_URL = import.meta.env.VITE_REPORTS_API_URL
+setWorkerUrl(workerUrl);
 
-// Load MapLibre's worker from the public directory.
-setWorkerUrl('/maplibre-gl-csp-worker.js')
+import { reportPoints as mockReportPoints } from "../data/reportPoints.js";
 
+const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
+const REPORTS_API_URL = import.meta.env.VITE_REPORTS_API_URL;
 
-const MAP_STYLE = {
-  version: 8,
-  sources: {
-    basemap: {
-      type: 'raster',
-      tiles: [
-        `https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=${CARTO_API_KEY}`,
-        `https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=${CARTO_API_KEY}`,
-        `https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=${CARTO_API_KEY}`,
-        `https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=${CARTO_API_KEY}`,
-      ],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: '© OpenStreetMap contributors © CARTO',
-    },
-  },
-  layers: [
-    {
-      id: 'basemap',
-      type: 'raster',
-      source: 'basemap',
-      paint: {
-        'raster-brightness-min': 0.12,
-        'raster-brightness-max': 1,
-        'raster-contrast': 0.35,
-      },
-    },
-  ],
-}
+const MAP_STYLE = `https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json${
+  CARTO_API_KEY ? `?key=${encodeURIComponent(CARTO_API_KEY)}` : ""
+}`;
 
+const COLORS = {
+  background: "#17191c",
+  land: "#202226",
+  roads: "#45484d",
+  majorRoads: "#62666d",
+  buildings: "#2c2f34",
+  water: "#191c20",
+  labels: "#aeb3bb",
+  intersection: "#f59e0b",
+  congestion: "#ef4444",
+  distraction: "#a78bfa",
+  other: "#38bdf8",
+};
 
-const CENTER = [120.88, 14.85]
-const EMPTY = { type: 'FeatureCollection', features: [] }
+const REPORT_TYPES = [
+  { id: "intersection", label: "Intersections", color: COLORS.intersection },
+  { id: "congestion", label: "Congestion", color: COLORS.congestion },
+  { id: "distraction", label: "Distraction", color: COLORS.distraction },
+  { id: "other", label: "Other reports", color: COLORS.other },
+];
 
-// Fetch reports from an API when configured.
-// Expected response: a GeoJSON FeatureCollection.
-// Without an API URL, use the existing mock data.
-async function fetchReports(signal) {
-  if (!REPORTS_API_URL) {
-    return mockReportPoints
+const INITIAL_CENTER = [120.88, 14.85];
+
+function getReportType(properties = {}) {
+  const value = String(
+    properties.reportType ??
+      properties.report_type ??
+      properties.type ??
+      properties.category ??
+      "other"
+  ).toLowerCase();
+
+  if (value.includes("intersection") || value.includes("crossroad")) {
+    return "intersection";
   }
 
-  const headers = {
-    Accept: 'application/geo+json, application/json',
+  if (value.includes("congestion") || value.includes("traffic")) {
+    return "congestion";
   }
-
-  // Only use this header if your API expects a Bearer token.
-  if (API_KEY) {
-    headers.Authorization = `Bearer ${API_KEY}`
-  }
-
-  const response = await fetch(REPORTS_API_URL, {
-    method: 'GET',
-    headers,
-    signal,
-  })
-
-  if (!response.ok) {
-    throw new Error(`Reports API failed: ${response.status}`)
-  }
-
-  const data = await response.json()
 
   if (
-    data?.type !== 'FeatureCollection' ||
-    !Array.isArray(data.features)
+    value.includes("distraction") ||
+    value.includes("distract") ||
+    value.includes("phone")
   ) {
-    throw new Error(
-      'Invalid API response: expected a GeoJSON FeatureCollection.'
-    )
+    return "distraction";
   }
 
-  return data
+  return "other";
 }
 
-export default function MapView({ onOpenReport, onNavigate }) {
-  const containerRef = useRef(null)
-  const mapRef = useRef(null)
-  const openRef = useRef(onOpenReport)
+function isVerified(properties = {}) {
+  const value =
+    properties.verified ??
+    properties.isVerified ??
+    properties.is_verified ??
+    properties.status;
 
-  openRef.current = onOpenReport
+  if (typeof value === "boolean") return value;
 
-  const [ready, setReady] = useState(false)
-  const [reportPoints, setReportPoints] = useState(mockReportPoints)
-  const [apiError, setApiError] = useState('')
-  const [selected, setSelected] = useState([
-    'intersection',
-    'congestion',
-    'distraction',
-  ])
-  const [includePending, setIncludePending] = useState(false)
+  if (typeof value === "number") return value === 1;
 
-  // Load API data when an endpoint is configured.
+  if (typeof value === "string") {
+    return ["verified", "approved", "confirmed"].includes(
+      value.toLowerCase().trim()
+    );
+  }
+
+  return false;
+}
+
+function normalizeGeoJSON(input) {
+  const points =
+    input?.type === "FeatureCollection" && Array.isArray(input.features)
+      ? input.features
+      : Array.isArray(input)
+        ? input
+        : Array.isArray(input?.features)
+          ? input.features
+          : Array.isArray(input?.reports)
+            ? input.reports
+            : Array.isArray(input?.data)
+              ? input.data
+              : [];
+
+  const features = points
+    .map((item, index) => {
+      const isFeature = item?.type === "Feature" && item.geometry;
+      const properties = item?.properties || item || {};
+
+      let longitude;
+      let latitude;
+
+      if (isFeature && item.geometry.type === "Point") {
+        [longitude, latitude] = item.geometry.coordinates || [];
+      } else {
+        longitude =
+          item?.longitude ??
+          item?.lng ??
+          item?.lon ??
+          properties.longitude ??
+          properties.lng ??
+          properties.lon;
+
+        latitude =
+          item?.latitude ??
+          item?.lat ??
+          properties.latitude ??
+          properties.lat;
+      }
+
+      longitude = Number(longitude);
+      latitude = Number(latitude);
+
+      if (
+        !Number.isFinite(longitude) ||
+        !Number.isFinite(latitude) ||
+        longitude < -180 ||
+        longitude > 180 ||
+        latitude < -90 ||
+        latitude > 90
+      ) {
+        return null;
+      }
+
+      const reportType = getReportType(properties);
+      const verified = isVerified(properties);
+      const severity = Number(properties.severity ?? 3);
+
+      return {
+        type: "Feature",
+        id: String(item?.id ?? properties._reportId ?? index),
+        geometry: {
+          type: "Point",
+          coordinates: [longitude, latitude],
+        },
+        properties: {
+          ...properties,
+          reportType,
+          verified,
+          _reportId: String(item?.id ?? properties._reportId ?? index),
+          _severityWeight: Number.isFinite(severity)
+            ? Math.max(1, Math.min(5, severity))
+            : 3,
+          description: String(
+            properties.description ?? properties.details ?? ""
+          ),
+        },
+      };
+    })
+    .filter(Boolean);
+
+  return { type: "FeatureCollection", features };
+}
+
+function applyRoadSafeBasemapStyle(map) {
+  const layers = map.getStyle()?.layers || [];
+
+  for (const layer of layers) {
+    const id = layer.id.toLowerCase();
+
+    try {
+      if (layer.type === "background") {
+        map.setPaintProperty(
+          layer.id,
+          "background-color",
+          COLORS.background
+        );
+        continue;
+      }
+
+      if (layer.type === "symbol") {
+        if (layer.layout?.["text-field"]) {
+          map.setPaintProperty(layer.id, "text-color", COLORS.labels);
+          map.setPaintProperty(
+            layer.id,
+            "text-halo-color",
+            COLORS.background
+          );
+          map.setPaintProperty(layer.id, "text-halo-width", 1.2);
+          map.setPaintProperty(layer.id, "text-halo-blur", 0.4);
+        }
+
+        if (
+          layer.layout?.["icon-image"] &&
+          map.getPaintProperty(layer.id, "icon-opacity") !== undefined
+        ) {
+          map.setPaintProperty(layer.id, "icon-opacity", 0.65);
+        }
+
+        continue;
+      }
+
+      if (layer.type === "fill") {
+        if (id.includes("water")) {
+          map.setPaintProperty(layer.id, "fill-color", COLORS.water);
+        } else if (id.includes("building") || id.includes("structure")) {
+          map.setPaintProperty(layer.id, "fill-color", COLORS.buildings);
+        } else if (
+          id.includes("park") ||
+          id.includes("grass") ||
+          id.includes("landcover") ||
+          id.includes("land-use") ||
+          id.includes("landuse")
+        ) {
+          map.setPaintProperty(layer.id, "fill-color", "#23262a");
+        } else if (id.includes("boundary") || id.includes("admin")) {
+          map.setPaintProperty(layer.id, "fill-color", "#292c31");
+          map.setPaintProperty(layer.id, "fill-opacity", 0.18);
+        } else {
+          map.setPaintProperty(layer.id, "fill-color", COLORS.land);
+        }
+
+        continue;
+      }
+
+      if (layer.type === "line") {
+        if (id.includes("water")) {
+          map.setPaintProperty(layer.id, "line-color", COLORS.water);
+        } else if (
+          id.includes("motorway") ||
+          id.includes("trunk") ||
+          id.includes("primary") ||
+          id.includes("highway")
+        ) {
+          map.setPaintProperty(
+            layer.id,
+            "line-color",
+            COLORS.majorRoads
+          );
+        } else if (id.includes("boundary") || id.includes("admin")) {
+          map.setPaintProperty(layer.id, "line-color", "#555a62");
+          map.setPaintProperty(layer.id, "line-opacity", 0.55);
+        } else {
+          map.setPaintProperty(layer.id, "line-color", COLORS.roads);
+        }
+
+        continue;
+      }
+
+      if (layer.type === "fill-extrusion") {
+        map.setPaintProperty(
+          layer.id,
+          "fill-extrusion-color",
+          COLORS.buildings
+        );
+      }
+    } catch (error) {
+      console.debug(`Skipped basemap layer "${layer.id}"`, error);
+    }
+  }
+}
+
+function addReportLayers(map) {
+  if (map.getSource("roadsafe-reports")) return;
+
+  map.addSource("roadsafe-reports", {
+    type: "geojson",
+    data: {
+      type: "FeatureCollection",
+      features: [],
+    },
+    cluster: true,
+    clusterMaxZoom: 13,
+    clusterRadius: 48,
+  });
+
+  map.addLayer({
+    id: "roadsafe-heatmap",
+    type: "heatmap",
+    source: "roadsafe-reports",
+    maxzoom: 13,
+    paint: {
+      "heatmap-weight": [
+        "interpolate",
+        ["linear"],
+        ["get", "_severityWeight"],
+        1, 0.25,
+        5, 1,
+      ],
+      "heatmap-intensity": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        5, 0.5,
+        12, 1.4,
+      ],
+      "heatmap-radius": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        5, 12,
+        12, 34,
+      ],
+      "heatmap-opacity": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        9, 0.72,
+        13, 0.25,
+      ],
+      "heatmap-color": [
+        "interpolate",
+        ["linear"],
+        ["heatmap-density"],
+        0, "rgba(0,0,0,0)",
+        0.2, "#352a4b",
+        0.4, "#7c3aed",
+        0.65, "#ef4444",
+        0.85, "#f97316",
+        1, "#facc15",
+      ],
+    },
+  });
+
+  map.addLayer({
+    id: "roadsafe-clusters",
+    type: "circle",
+    source: "roadsafe-reports",
+    filter: ["has", "point_count"],
+    paint: {
+      "circle-color": "#292d33",
+      "circle-radius": [
+        "step",
+        ["get", "point_count"],
+        17,
+        10, 22,
+        30, 28,
+        75, 34,
+      ],
+      "circle-stroke-color": "#a7adb7",
+      "circle-stroke-width": 1.5,
+      "circle-opacity": 0.96,
+    },
+  });
+
+  map.addLayer({
+    id: "roadsafe-cluster-count",
+    type: "symbol",
+    source: "roadsafe-reports",
+    filter: ["has", "point_count"],
+    layout: {
+      "text-field": ["get", "point_count_abbreviated"],
+      "text-size": 12,
+      "text-font": ["Open Sans Bold"],
+    },
+    paint: {
+      "text-color": "#f4f5f7",
+      "text-halo-color": "#202226",
+      "text-halo-width": 1,
+    },
+  });
+
+  map.addLayer({
+    id: "roadsafe-report-glow",
+    type: "circle",
+    source: "roadsafe-reports",
+    filter: ["!", ["has", "point_count"]],
+    paint: {
+      "circle-radius": 15,
+      "circle-color": [
+        "match",
+        ["get", "reportType"],
+        "intersection", COLORS.intersection,
+        "congestion", COLORS.congestion,
+        "distraction", COLORS.distraction,
+        COLORS.other,
+      ],
+      "circle-opacity": 0.16,
+      "circle-blur": 0.9,
+    },
+  });
+
+  map.addLayer({
+    id: "roadsafe-report-points",
+    type: "circle",
+    source: "roadsafe-reports",
+    filter: ["!", ["has", "point_count"]],
+    paint: {
+      "circle-radius": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        5, 4,
+        12, 6,
+        16, 8,
+      ],
+      "circle-color": [
+        "match",
+        ["get", "reportType"],
+        "intersection", COLORS.intersection,
+        "congestion", COLORS.congestion,
+        "distraction", COLORS.distraction,
+        COLORS.other,
+      ],
+      "circle-stroke-color": "#f8fafc",
+      "circle-stroke-width": 1.25,
+      "circle-opacity": 0.98,
+    },
+  });
+}
+
+function filterReports(reports, selectedTypes, includePending) {
+  return {
+    type: "FeatureCollection",
+    features: (reports.features || []).filter((feature) => {
+      const properties = feature.properties || {};
+
+      return (
+        selectedTypes.includes(properties.reportType) &&
+        (includePending || properties.verified)
+      );
+    }),
+  };
+}
+
+export default function MapView() {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const [selectedTypes, setSelectedTypes] = useState(
+    REPORT_TYPES.map((type) => type.id)
+  );
+  const [includePending, setIncludePending] = useState(false);
+  const [reports, setReports] = useState(() =>
+    normalizeGeoJSON(mockReportPoints)
+  );
+  const [mapError, setMapError] = useState("");
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  const visibleReports = useMemo(
+    () => filterReports(reports, selectedTypes, includePending),
+    [reports, selectedTypes, includePending]
+  );
+
+  const metrics = useMemo(() => {
+    const features = visibleReports.features;
+
+    return {
+      total: features.length,
+      verified: features.filter(
+        (feature) => feature.properties.verified
+      ).length,
+      pending: features.filter(
+        (feature) => !feature.properties.verified
+      ).length,
+    };
+  }, [visibleReports]);
+
+  const toggleType = useCallback((type) => {
+    setSelectedTypes((current) =>
+      current.includes(type)
+        ? current.filter((item) => item !== type)
+        : [...current, type]
+    );
+  }, []);
+
   useEffect(() => {
-    if (!REPORTS_API_URL) return
+    if (!REPORTS_API_URL) return;
 
-    const controller = new AbortController()
-    let active = true
+    const controller = new AbortController();
 
     async function loadReports() {
       try {
-        const data = await fetchReports(controller.signal)
+        const response = await fetch(REPORTS_API_URL, {
+          signal: controller.signal,
+          headers: { Accept: "application/json" },
+        });
 
-        if (!active) return
+        if (!response.ok) {
+          throw new Error(`Reports API returned ${response.status}`);
+        }
 
-        setReportPoints(data)
-        setApiError('')
+        const data = await response.json();
+        setReports(normalizeGeoJSON(data));
       } catch (error) {
-        if (!active || error.name === 'AbortError') return
-
-        console.error('Unable to load reports:', error)
-        setApiError(
-          'Could not load live reports. Displaying available fallback data.'
-        )
+        if (error.name !== "AbortError") {
+          console.error("Could not load live reports:", error);
+          // Keep mock reports available if the API request fails.
+        }
       }
     }
 
-    loadReports()
+    loadReports();
 
-    return () => {
-      active = false
-      controller.abort()
-    }
-  }, [])
+    return () => controller.abort();
+  }, []);
 
-  // Filter the reports displayed by the map and metrics.
-  const visible = useMemo(
-    () =>
-      reportPoints.features.filter((feature) => {
-        const properties = feature.properties ?? {}
-
-        return (
-          selected.includes(properties.type) &&
-          (includePending || properties.status === 'Verified')
-        )
-      }),
-    [reportPoints, selected, includePending]
-  )
-
-  const metrics = useMemo(
-    () =>
-      TYPES
-        .filter((type) => selected.includes(type.key))
-        .map((type) => {
-          const count = visible.filter(
-            (feature) => feature.properties?.type === type.key
-          ).length
-
-          return {
-            label: type.label,
-            pct: visible.length
-              ? Math.round((count / visible.length) * 100)
-              : 0,
-          }
-        }),
-    [visible, selected]
-  )
-
-  // Initialize the map once.
   useEffect(() => {
-    if (!containerRef.current) return
+    if (!containerRef.current || mapRef.current) return;
 
     const map = new MapLibreMap({
       container: containerRef.current,
       style: MAP_STYLE,
-      center: CENTER,
+      center: INITIAL_CENTER,
       zoom: 10,
-      attributionControl: { compact: true },
-    })
+      minZoom: 3,
+      maxZoom: 19,
+      attributionControl: false,
+      pitch: 0,
+      bearing: 0,
+    });
 
-    mapRef.current = map
+    mapRef.current = map;
 
     map.addControl(
-      new NavigationControl({ showCompass: false }),
-      'bottom-right'
-    )
+      new NavigationControl({
+        showCompass: true,
+        showZoom: true,
+        visualizePitch: true,
+      }),
+      "top-right"
+    );
 
-    map.on('error', (event) => {
-      console.error('MapLibre error:', event.error || event)
-    })
+    map.addControl(
+      new AttributionControl({
+        compact: true,
+        customAttribution:
+          '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a> · © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>',
+      }),
+      "bottom-right"
+    );
 
-    map.once('style.load', () => {
-      if (mapRef.current !== map) return
+    map.on("load", () => {
+      applyRoadSafeBasemapStyle(map);
+      addReportLayers(map);
+      setMapReady(true);
+      setMapError("");
+    });
 
-      // Source for heatmap and individual report points.
-      map.addSource('reports', {
-        type: 'geojson',
-        data: EMPTY,
-      })
+    map.on("click", "roadsafe-clusters", (event) => {
+      const feature = map.queryRenderedFeatures(event.point, {
+        layers: ["roadsafe-clusters"],
+      })[0];
 
-      // Source for clustered report points.
-      map.addSource('report-clusters', {
-        type: 'geojson',
-        data: EMPTY,
-        cluster: true,
-        clusterRadius: 60,
-        clusterMaxZoom: 12,
-      })
+      if (!feature) return;
 
-      // Heatmap.
-      map.addLayer({
-        id: 'report-heat',
-        type: 'heatmap',
-        source: 'reports',
-        maxzoom: 15,
-        paint: {
-          'heatmap-weight': [
-            'interpolate',
-            ['linear'],
-            ['get', 'severity'],
-            1, 0.4,
-            3, 1,
-          ],
-          'heatmap-intensity': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            8, 0.8,
-            14, 2.2,
-          ],
-          'heatmap-radius': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            8, 18,
-            12, 34,
-            15, 60,
-          ],
-          'heatmap-color': [
-            'interpolate',
-            ['linear'],
-            ['heatmap-density'],
-            0, 'rgba(249,115,22,0)',
-            0.2, 'rgba(127,29,29,0.45)',
-            0.45, 'rgba(220,38,38,0.65)',
-            0.7, 'rgba(249,115,22,0.85)',
-            1, 'rgba(251,191,36,0.95)',
-          ],
-          'heatmap-opacity': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            12, 0.9,
-            15, 0,
-          ],
-        },
-      })
-
-      // Cluster hotspot rings.
-      map.addLayer({
-        id: 'cluster-rings',
-        type: 'circle',
-        source: 'report-clusters',
-        filter: ['has', 'point_count'],
-        paint: {
-          'circle-color': 'rgba(239,68,68,0.12)',
-          'circle-stroke-color': '#ef4444',
-          'circle-stroke-width': 1,
-          'circle-stroke-opacity': 0.5,
-          'circle-radius': [
-            'step',
-            ['get', 'point_count'],
-            26,
-            5, 38,
-            10, 52,
-          ],
-        },
-      })
-
-      // Glow behind report points.
-      map.addLayer({
-        id: 'report-dots-glow',
-        type: 'circle',
-        source: 'reports',
-        paint: {
-          'circle-radius': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            10, 8,
-            15, 20,
-          ],
-          'circle-color': '#f97316',
-          'circle-blur': 1,
-          'circle-opacity': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            10, 0,
-            12, 0.3,
-          ],
-        },
-      })
-
-      // Individual clickable report points.
-      map.addLayer({
-        id: 'report-dots',
-        type: 'circle',
-        source: 'reports',
-        paint: {
-          'circle-radius': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            10, 3,
-            15, 8,
-          ],
-          'circle-color': [
-            'match',
-            ['get', 'severity'],
-            3, '#ef4444',
-            2, '#f97316',
-            '#fbbf24',
-          ],
-          'circle-stroke-color': '#fff7ed',
-          'circle-stroke-width': 1,
-          'circle-opacity': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            10, 0.5,
-            12, 1,
-          ],
-        },
-      })
-
-      // Clicking a point opens its report.
-      map.on('click', 'report-dots', (event) => {
-        const id = event.features?.[0]?.properties?.id
-
-        if (id != null) {
-          openRef.current?.(id)
+      const source = map.getSource("roadsafe-reports");
+      source.getClusterExpansionZoom(
+        feature.properties.cluster_id,
+        (error, zoom) => {
+          if (!error) {
+            map.easeTo({
+              center: feature.geometry.coordinates,
+              zoom,
+              duration: 450,
+            });
+          }
         }
-      })
+      );
+    });
 
-      // Clicking a cluster zooms into it.
-      map.on('click', 'cluster-rings', async (event) => {
-        const feature = event.features?.[0]
+    map.on("click", "roadsafe-report-points", (event) => {
+      const feature = event.features?.[0];
+      if (!feature) return;
 
-        if (!feature) return
+      setSelectedReport({
+        ...feature.properties,
+        coordinates: feature.geometry.coordinates,
+      });
+    });
 
-        const coordinates = feature.geometry.coordinates
-        const clusterId = feature.properties.cluster_id
+    for (const layerId of [
+      "roadsafe-clusters",
+      "roadsafe-report-points",
+    ]) {
+      map.on("mouseenter", layerId, () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
 
-        try {
-          const source = map.getSource('report-clusters')
+      map.on("mouseleave", layerId, () => {
+        map.getCanvas().style.cursor = "";
+      });
+    }
 
-          const zoom = await source.getClusterExpansionZoom(clusterId)
+    map.on("error", (event) => {
+      console.error("MapLibre error:", event.error || event);
 
-          map.easeTo({
-            center: coordinates,
-            zoom,
-          })
-        } catch (error) {
-          console.warn('Unable to expand cluster:', error)
-
-          map.easeTo({
-            center: coordinates,
-            zoom: map.getZoom() + 2,
-          })
-        }
-      })
-
-      // Pointer cursor for clickable layers.
-      ;['report-dots', 'cluster-rings'].forEach((layer) => {
-        map.on('mouseenter', layer, () => {
-          map.getCanvas().style.cursor = 'pointer'
-        })
-
-        map.on('mouseleave', layer, () => {
-          map.getCanvas().style.cursor = ''
-        })
-      })
-
-      console.log('MapLibre ready: layers added')
-
-      map.resize()
-      setReady(true)
-    })
+      // Only report a startup error if the style has not loaded.
+      if (!map.isStyleLoaded()) {
+        setMapError(
+          "The map could not finish loading. Check the CARTO style URL, API key, network connection, and browser console."
+        );
+      }
+    });
 
     return () => {
-      map.remove()
-      mapRef.current = null
-      setReady(false)
-    }
-  }, [])
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
 
-  // Update both map sources whenever the filtered data changes.
+  // Send only the filtered reports to the map source.
+  // Filtering before clustering keeps cluster counts accurate.
   useEffect(() => {
-    const map = mapRef.current
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
 
-    if (!ready || !map) return
-
-    const data = {
-      type: 'FeatureCollection',
-      features: visible,
+    const source = map.getSource("roadsafe-reports");
+    if (source) {
+      source.setData(visibleReports);
     }
+  }, [visibleReports, mapReady]);
 
-    map.getSource('reports')?.setData(data)
-    map.getSource('report-clusters')?.setData(data)
-  }, [ready, visible])
+  const resetMap = useCallback(() => {
+    mapRef.current?.flyTo({
+      center: INITIAL_CENTER,
+      zoom: 10,
+      pitch: 0,
+      bearing: 0,
+      duration: 700,
+    });
+  }, []);
 
-  const toggleType = (key) => {
-    setSelected((previous) =>
-      previous.includes(key)
-        ? previous.filter((item) => item !== key)
-        : [...previous, key]
-    )
-  }
+  const focusSelectedReport = useCallback(() => {
+    if (!selectedReport?.coordinates || !mapRef.current) return;
+
+    mapRef.current.flyTo({
+      center: selectedReport.coordinates,
+      zoom: 15,
+      duration: 700,
+    });
+  }, [selectedReport]);
 
   return (
-    <main className="flex-1 relative bg-slate-950 overflow-hidden">
-      {/* Map */}
-      <div className="absolute inset-0">
-        <div
-          ref={containerRef}
-          style={{ width: '100%', height: '100%' }}
-        />
-      </div>
+    <div className="roadsafe-map-page">
+      <style>{`
+        .roadsafe-map-page {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          width: 100%;
+          min-width: 0;
+          color: #e5e7eb;
+          font-family: Inter, system-ui, sans-serif;
+        }
+        .roadsafe-map-page * { box-sizing: border-box; }
+        .roadsafe-map-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        .roadsafe-map-title {
+          margin: 0;
+          font-size: 22px;
+          font-weight: 650;
+          letter-spacing: -.04em;
+        }
+        .roadsafe-map-subtitle {
+          margin: 5px 0 0;
+          color: #8e959f;
+          font-size: 13px;
+        }
+        .roadsafe-map-chip {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          border: 1px solid #30343a;
+          background: #1b1e22;
+          color: #b9bec6;
+          border-radius: 7px;
+          padding: 7px 10px;
+          font-size: 12px;
+        }
+        .roadsafe-map-metrics {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .roadsafe-map-metric {
+          border: 1px solid #30343a;
+          background: #1b1e22;
+          border-radius: 9px;
+          padding: 13px 15px;
+          min-width: 0;
+        }
+        .roadsafe-map-metric-label {
+          color: #8e959f;
+          font-size: 12px;
+        }
+        .roadsafe-map-metric-value {
+          margin-top: 5px;
+          font-size: 23px;
+          font-weight: 650;
+          color: #f3f4f6;
+        }
+        .roadsafe-map-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 230px;
+          gap: 12px;
+          min-width: 0;
+        }
+        .roadsafe-map-canvas {
+          position: relative;
+          min-width: 0;
+          height: min(68vh, 680px);
+          min-height: 390px;
+          overflow: hidden;
+          border: 1px solid #30343a;
+          border-radius: 10px;
+          background: #17191c;
+        }
+        .roadsafe-map-canvas .maplibregl-map {
+          width: 100%;
+          height: 100%;
+        }
+        .roadsafe-map-canvas .maplibregl-ctrl-group {
+          background: #202328;
+          border: 1px solid #393e45;
+          box-shadow: 0 3px 14px #0005;
+        }
+        .roadsafe-map-canvas .maplibregl-ctrl-group button {
+          background-color: #202328;
+        }
+        .roadsafe-map-canvas .maplibregl-ctrl-group button span {
+          filter: invert(.85);
+        }
+        .roadsafe-map-canvas .maplibregl-ctrl-attrib {
+          background: #17191ce8;
+          color: #aeb3bb;
+        }
+        .roadsafe-map-canvas .maplibregl-ctrl-attrib a {
+          color: #c3c8d0;
+        }
+        .roadsafe-map-sidebar {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          min-width: 0;
+        }
+        .roadsafe-map-panel {
+          border: 1px solid #30343a;
+          background: #1b1e22;
+          border-radius: 9px;
+          padding: 14px;
+        }
+        .roadsafe-map-panel-title {
+          margin: 0 0 12px;
+          color: #e5e7eb;
+          font-size: 12px;
+          font-weight: 650;
+          letter-spacing: .07em;
+          text-transform: uppercase;
+        }
+        .roadsafe-map-filter {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          padding: 8px 0;
+          color: #c5cad1;
+          font-size: 13px;
+          cursor: pointer;
+        }
+        .roadsafe-map-filter input,
+        .roadsafe-map-toggle input {
+          accent-color: #d1d5db;
+        }
+        .roadsafe-map-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          flex: none;
+        }
+        .roadsafe-map-toggle {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          margin-top: 10px;
+          font-size: 12px;
+          color: #aeb4bd;
+          cursor: pointer;
+        }
+        .roadsafe-map-details {
+          margin-top: 10px;
+          padding: 12px;
+          background: #15171a;
+          border: 1px solid #30343a;
+          border-radius: 8px;
+          font-size: 12px;
+          overflow-wrap: anywhere;
+        }
+        .roadsafe-map-button {
+          border: 1px solid #41464e;
+          background: #22262b;
+          color: #e5e7eb;
+          border-radius: 5px;
+          padding: 6px 9px;
+          cursor: pointer;
+        }
+        .roadsafe-map-error {
+          position: absolute;
+          z-index: 5;
+          inset: 12px 12px auto;
+          background: #2a1c1c;
+          border: 1px solid #7f3333;
+          color: #fecaca;
+          padding: 10px 12px;
+          border-radius: 7px;
+          font-size: 12px;
+        }
+        @media (max-width: 800px) {
+          .roadsafe-map-layout {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .roadsafe-map-sidebar {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .roadsafe-map-canvas {
+            height: 55vh;
+            min-height: 340px;
+          }
+        }
+        @media (max-width: 480px) {
+          .roadsafe-map-metrics { gap: 6px; }
+          .roadsafe-map-metric { padding: 10px; }
+          .roadsafe-map-metric-value { font-size: 19px; }
+          .roadsafe-map-sidebar {
+            grid-template-columns: minmax(0, 1fr);
+          }
+        }
+      `}</style>
 
-      {/* Summary cards */}
-      <div className="absolute top-6 left-6 right-6 grid grid-cols-4 gap-4 z-10 pointer-events-none">
-        {summary.map((item) => (
-          <div
-            key={item.label}
-            className="pointer-events-auto bg-darkCard/90 backdrop-blur-md border border-darkBorder p-4 rounded-2xl shadow-2xl flex items-center justify-between"
-          >
-            <div>
-              <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">
-                {item.label}
-              </p>
-              <h3 className={`text-2xl font-bold mt-0.5 ${item.valueClass}`}>
-                {item.value}
-              </h3>
-            </div>
-
-            <div className={`p-3 rounded-xl border ${item.iconClass}`}>
-              <i className={`fa-solid ${item.icon} text-base`} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Layer filters */}
-      <div className="absolute top-28 left-6 w-72 bg-darkCard/90 backdrop-blur-md border border-darkBorder rounded-2xl p-5 shadow-2xl z-10">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-xs text-white uppercase tracking-wider">
-            Road Analysis
-          </h3>
-
-          <span className="text-[10px] text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded font-medium">
-            Bulacan Sector
-          </span>
+      <header className="roadsafe-map-header">
+        <div>
+          <h2 className="roadsafe-map-title">Road Safety Map</h2>
+          <p className="roadsafe-map-subtitle">
+            Accident reports and traffic-risk locations
+          </p>
         </div>
 
-        <div className="space-y-3 text-xs">
-          {TYPES.map((type) => (
-            <label
-              key={type.key}
-              className="flex items-center gap-3 text-slate-300 cursor-pointer hover:text-white transition"
-            >
+        <div className="roadsafe-map-chip">
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: mapReady ? "#4ade80" : "#fbbf24",
+            }}
+          />
+          {mapReady ? "Map connected" : "Loading basemap"}
+          <button
+            type="button"
+            className="roadsafe-map-button"
+            onClick={resetMap}
+            style={{ marginLeft: 5 }}
+          >
+            Reset view
+          </button>
+        </div>
+      </header>
+
+      {mapError && <div className="roadsafe-map-error">{mapError}</div>}
+
+      <section className="roadsafe-map-metrics">
+        <div className="roadsafe-map-metric">
+          <div className="roadsafe-map-metric-label">Visible reports</div>
+          <div className="roadsafe-map-metric-value">{metrics.total}</div>
+        </div>
+        <div className="roadsafe-map-metric">
+          <div className="roadsafe-map-metric-label">Verified</div>
+          <div className="roadsafe-map-metric-value">{metrics.verified}</div>
+        </div>
+        <div className="roadsafe-map-metric">
+          <div className="roadsafe-map-metric-label">Pending</div>
+          <div className="roadsafe-map-metric-value">{metrics.pending}</div>
+        </div>
+      </section>
+
+      <div className="roadsafe-map-layout">
+        <div className="roadsafe-map-canvas">
+          <div
+            ref={containerRef}
+            style={{ position: "absolute", inset: 0 }}
+          />
+        </div>
+
+        <aside className="roadsafe-map-sidebar">
+          <section className="roadsafe-map-panel">
+            <h3 className="roadsafe-map-panel-title">Report filters</h3>
+
+            {REPORT_TYPES.map((type) => (
+              <label className="roadsafe-map-filter" key={type.id}>
+                <input
+                  type="checkbox"
+                  checked={selectedTypes.includes(type.id)}
+                  onChange={() => toggleType(type.id)}
+                />
+                <span
+                  className="roadsafe-map-dot"
+                  style={{ background: type.color }}
+                />
+                <span>{type.label}</span>
+              </label>
+            ))}
+
+            <label className="roadsafe-map-toggle">
               <input
                 type="checkbox"
-                checked={selected.includes(type.key)}
-                onChange={() => toggleType(type.key)}
-                className="accent-orange-500 rounded w-4 h-4"
+                checked={includePending}
+                onChange={(event) =>
+                  setIncludePending(event.target.checked)
+                }
               />
-
-              {type.label}
+              Include unverified reports
             </label>
-          ))}
-        </div>
+          </section>
 
-        <label className="mt-4 pt-3 border-t border-darkBorder flex items-center gap-3 text-xs text-slate-300 cursor-pointer hover:text-white transition">
-          <input
-            type="checkbox"
-            checked={includePending}
-            onChange={(event) => setIncludePending(event.target.checked)}
-            className="accent-orange-500 rounded w-4 h-4"
-          />
+          <section className="roadsafe-map-panel">
+            <h3 className="roadsafe-map-panel-title">Map legend</h3>
 
-          Include unverified (pending) reports
-        </label>
+            {REPORT_TYPES.map((type) => (
+              <div className="roadsafe-map-filter" key={type.id}>
+                <span
+                  className="roadsafe-map-dot"
+                  style={{ background: type.color }}
+                />
+                {type.label}
+              </div>
+            ))}
 
-        <div className="mt-4 pt-3 border-t border-darkBorder text-[11px] text-slate-400 flex justify-between items-center">
-          <span>Events on map:</span>
-          <span className="font-bold text-white font-mono">
-            {visible.length}
-          </span>
-        </div>
-
-        {apiError && (
-          <p role="status" className="mt-3 text-xs text-amber-400">
-            {apiError}
-          </p>
-        )}
-      </div>
-
-      {/* Incident metrics */}
-      <div className="absolute top-28 right-6 w-72 bg-darkCard/90 backdrop-blur-md border border-darkBorder rounded-2xl p-5 shadow-2xl z-10 space-y-4">
-        <h4 className="font-bold text-xs text-white uppercase tracking-wider">
-          Incident Metrics
-        </h4>
-
-        {metrics.length === 0 && (
-          <p className="text-xs text-slate-400">
-            Select at least one layer to see metrics.
-          </p>
-        )}
-
-        {metrics.map((metric) => (
-          <div key={metric.label}>
-            <div className="flex justify-between text-[11px] mb-1 font-medium">
-              <span className="text-slate-300">{metric.label}</span>
-              <span className="text-orange-400 font-bold">
-                {metric.pct}%
-              </span>
+            <div
+              style={{
+                marginTop: 9,
+                color: "#858c96",
+                fontSize: 11,
+                lineHeight: 1.6,
+              }}
+            >
+              Clusters represent multiple reports. The heatmap highlights
+              areas with a concentration of incidents.
             </div>
+          </section>
 
-            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-gradient-to-r from-orange-600 to-amber-500 h-full rounded-full"
-                style={{ width: `${metric.pct}%` }}
-              />
-            </div>
-          </div>
-        ))}
+          {selectedReport && (
+            <section className="roadsafe-map-details">
+              <strong style={{ color: "#f3f4f6" }}>Selected report</strong>
 
-        <button
-          type="button"
-          onClick={() => onNavigate?.('analytics-view')}
-          className="w-full py-2.5 bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white rounded-xl text-xs font-semibold shadow-lg shadow-orange-500/20 transition"
-        >
-          Export Full PDF / CSV Report
-        </button>
+              <div style={{ marginTop: 8, color: "#aeb4bd" }}>
+                Type: {selectedReport.reportType || "Other"}
+              </div>
+
+              <div style={{ marginTop: 5, color: "#aeb4bd" }}>
+                Status: {selectedReport.verified ? "Verified" : "Pending"}
+              </div>
+
+              <div style={{ marginTop: 5, color: "#aeb4bd" }}>
+                Coordinates:{" "}
+                {selectedReport.coordinates
+                  ?.map((value) => Number(value).toFixed(5))
+                  .join(", ")}
+              </div>
+
+              {selectedReport.description && (
+                <div style={{ marginTop: 7, color: "#d1d5db" }}>
+                  {selectedReport.description}
+                </div>
+              )}
+
+              <button
+                type="button"
+                className="roadsafe-map-button"
+                onClick={focusSelectedReport}
+              >
+                Zoom to report
+              </button>
+
+              <button
+                type="button"
+                className="roadsafe-map-button"
+                onClick={() => setSelectedReport(null)}
+                style={{ marginLeft: 6 }}
+              >
+                Close
+              </button>
+            </section>
+          )}
+        </aside>
       </div>
-    </main>
-  )
+    </div>
+  );
 }
