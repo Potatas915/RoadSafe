@@ -468,17 +468,35 @@ export default function MapView() {
   const [selectedStation, setSelectedStation] = useState(null);
   const responders = useResponderState();
 
+    // Use the selected report as the search center only while it is visible on the
+  // map. If you pan somewhere else, deploying uses the map center instead.
+  const [reportInView, setReportInView] = useState(false);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    const update = () => {
+      const coords = selectedReport?.coordinates;
+      setReportInView(Boolean(coords) && map.getBounds().contains(coords));
+    };
+
+    update();
+    map.on("moveend", update);
+    return () => map.off("moveend", update);
+  }, [mapReady, selectedReport]);
+  const searchAnchor = reportInView ? selectedReport.coordinates : undefined;
+
     const police = usePoliceStations(
     mapRef,
     mapReady,
-    selectedReport?.coordinates,
+    searchAnchor,
     radiusKm,
     setSelectedStation
   );
   const medical = useMedicalStations(
     mapRef,
     mapReady,
-    selectedReport?.coordinates,
+    searchAnchor,
     radiusKm,
     setSelectedStation
   );
@@ -508,7 +526,7 @@ export default function MapView() {
   const radius = useRadiusArea(
     mapRef,
     mapReady,
-    selectedReport?.coordinates,
+    searchAnchor,
     radiusKm,
   );
 
