@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Popup } from "maplibre-gl";
 import { filterByRadius } from "../services/policeStations.js";
 
 export const RADIUS_OPTIONS_KM = [1, 1.5, 2, 2.5, 3, 3.5];
@@ -143,8 +142,14 @@ export default function useStationLayer(
   mapRef,
   mapReady,
   centerOverride,
-  radiusKm
+  radiusKm,
+  onSelect
 ) {
+  const onSelectRef = useRef(onSelect);
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
+
   const ids = {
     source: `roadsafe-${config.id}-stations`,
     icon: `roadsafe-${config.id}-badge`,
@@ -190,36 +195,20 @@ export default function useStationLayer(
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    const onClick = (event) => {
+        const onClick = (event) => {
       const feature = event.features?.[0];
       if (!feature) return;
 
-      const box = document.createElement("div");
-      box.style.cssText =
-        "color:#111;font:13px/1.4 system-ui,sans-serif;max-width:220px";
-
-      const title = document.createElement("strong");
-      title.textContent = feature.properties.name;
-      box.appendChild(title);
-
-      if (feature.properties.kind) {
-        const kind = document.createElement("div");
-        kind.style.cssText = "color:#555;font-size:12px";
-        kind.textContent = feature.properties.kind;
-        box.appendChild(kind);
-      }
-
-      if (feature.properties.address) {
-        const addr = document.createElement("div");
-        addr.style.marginTop = "4px";
-        addr.textContent = feature.properties.address;
-        box.appendChild(addr);
-      }
-
-      new Popup({ offset: 12 })
-        .setLngLat(feature.geometry.coordinates)
-        .setDOMContent(box)
-        .addTo(map);
+      const [lng, lat] = feature.geometry.coordinates;
+      onSelectRef.current?.({
+        id: feature.properties.id,
+        name: feature.properties.name,
+        address: feature.properties.address,
+        kind: feature.properties.kind,
+        responderType: config.id,
+        lng,
+        lat,
+      });
     };
     const onEnter = () => (map.getCanvas().style.cursor = "pointer");
     const onLeave = () => (map.getCanvas().style.cursor = "");

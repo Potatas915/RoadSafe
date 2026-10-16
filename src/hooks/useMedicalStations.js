@@ -18,7 +18,15 @@ export default function useMedicalStations(
   mapRef,
   mapReady,
   centerOverride,
-  radiusKm
+  radiusKm,
+  onSelect
 ) {
-  return useStationLayer(MEDICAL_CONFIG, mapRef, mapReady, centerOverride, radiusKm);
+  return useStationLayer(
+    MEDICAL_CONFIG,
+    mapRef,
+    mapReady,
+    centerOverride,
+    radiusKm,
+    onSelect
+  );
 }

@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Map as MapLibreMap,
@@ -22,6 +21,9 @@ import usePoliceStations, {
 import useMedicalStations from "../hooks/useMedicalStations.js";
 
 import useRadiusArea from "../hooks/useRadiusArea.js";
+
+import useResponderState from "../hooks/useResponderState.js";
+import ResponderCard from "./ResponderCard.jsx";
 
 const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
 const REPORTS_API_URL = import.meta.env.VITE_REPORTS_API_URL;
@@ -59,7 +61,7 @@ function getReportType(properties = {}) {
       properties.report_type ??
       properties.type ??
       properties.category ??
-      "other"
+      "other",
   ).toLowerCase();
 
   if (value.includes("intersection") || value.includes("crossroad")) {
@@ -94,7 +96,7 @@ function isVerified(properties = {}) {
 
   if (typeof value === "string") {
     return ["verified", "approved", "confirmed"].includes(
-      value.toLowerCase().trim()
+      value.toLowerCase().trim(),
     );
   }
 
@@ -135,10 +137,7 @@ function normalizeGeoJSON(input) {
           properties.lon;
 
         latitude =
-          item?.latitude ??
-          item?.lat ??
-          properties.latitude ??
-          properties.lat;
+          item?.latitude ?? item?.lat ?? properties.latitude ?? properties.lat;
       }
 
       longitude = Number(longitude);
@@ -175,7 +174,7 @@ function normalizeGeoJSON(input) {
             ? Math.max(1, Math.min(5, severity))
             : 3,
           description: String(
-            properties.description ?? properties.details ?? ""
+            properties.description ?? properties.details ?? "",
           ),
         },
       };
@@ -193,22 +192,14 @@ function applyRoadSafeBasemapStyle(map) {
 
     try {
       if (layer.type === "background") {
-        map.setPaintProperty(
-          layer.id,
-          "background-color",
-          COLORS.background
-        );
+        map.setPaintProperty(layer.id, "background-color", COLORS.background);
         continue;
       }
 
       if (layer.type === "symbol") {
         if (layer.layout?.["text-field"]) {
           map.setPaintProperty(layer.id, "text-color", COLORS.labels);
-          map.setPaintProperty(
-            layer.id,
-            "text-halo-color",
-            COLORS.background
-          );
+          map.setPaintProperty(layer.id, "text-halo-color", COLORS.background);
           map.setPaintProperty(layer.id, "text-halo-width", 1.2);
           map.setPaintProperty(layer.id, "text-halo-blur", 0.4);
         }
@@ -255,11 +246,7 @@ function applyRoadSafeBasemapStyle(map) {
           id.includes("primary") ||
           id.includes("highway")
         ) {
-          map.setPaintProperty(
-            layer.id,
-            "line-color",
-            COLORS.majorRoads
-          );
+          map.setPaintProperty(layer.id, "line-color", COLORS.majorRoads);
         } else if (id.includes("boundary") || id.includes("admin")) {
           map.setPaintProperty(layer.id, "line-color", "#555a62");
           map.setPaintProperty(layer.id, "line-opacity", 0.55);
@@ -274,7 +261,7 @@ function applyRoadSafeBasemapStyle(map) {
         map.setPaintProperty(
           layer.id,
           "fill-extrusion-color",
-          COLORS.buildings
+          COLORS.buildings,
         );
       }
     } catch (error) {
@@ -307,40 +294,46 @@ function addReportLayers(map) {
         "interpolate",
         ["linear"],
         ["get", "_severityWeight"],
-        1, 0.25,
-        5, 1,
+        1,
+        0.25,
+        5,
+        1,
       ],
       "heatmap-intensity": [
         "interpolate",
         ["linear"],
         ["zoom"],
-        5, 0.5,
-        12, 1.4,
+        5,
+        0.5,
+        12,
+        1.4,
       ],
-      "heatmap-radius": [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        5, 12,
-        12, 34,
-      ],
+      "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 5, 12, 12, 34],
       "heatmap-opacity": [
         "interpolate",
         ["linear"],
         ["zoom"],
-        9, 0.72,
-        13, 0.25,
+        9,
+        0.72,
+        13,
+        0.25,
       ],
       "heatmap-color": [
         "interpolate",
         ["linear"],
         ["heatmap-density"],
-        0, "rgba(0,0,0,0)",
-        0.2, "#352a4b",
-        0.4, "#7c3aed",
-        0.65, "#ef4444",
-        0.85, "#f97316",
-        1, "#facc15",
+        0,
+        "rgba(0,0,0,0)",
+        0.2,
+        "#352a4b",
+        0.4,
+        "#7c3aed",
+        0.65,
+        "#ef4444",
+        0.85,
+        "#f97316",
+        1,
+        "#facc15",
       ],
     },
   });
@@ -356,9 +349,12 @@ function addReportLayers(map) {
         "step",
         ["get", "point_count"],
         17,
-        10, 22,
-        30, 28,
-        75, 34,
+        10,
+        22,
+        30,
+        28,
+        75,
+        34,
       ],
       "circle-stroke-color": "#a7adb7",
       "circle-stroke-width": 1.5,
@@ -393,9 +389,12 @@ function addReportLayers(map) {
       "circle-color": [
         "match",
         ["get", "reportType"],
-        "intersection", COLORS.intersection,
-        "congestion", COLORS.congestion,
-        "distraction", COLORS.distraction,
+        "intersection",
+        COLORS.intersection,
+        "congestion",
+        COLORS.congestion,
+        "distraction",
+        COLORS.distraction,
         COLORS.other,
       ],
       "circle-opacity": 0.16,
@@ -413,16 +412,22 @@ function addReportLayers(map) {
         "interpolate",
         ["linear"],
         ["zoom"],
-        5, 4,
-        12, 6,
-        16, 8,
+        5,
+        4,
+        12,
+        6,
+        16,
+        8,
       ],
       "circle-color": [
         "match",
         ["get", "reportType"],
-        "intersection", COLORS.intersection,
-        "congestion", COLORS.congestion,
-        "distraction", COLORS.distraction,
+        "intersection",
+        COLORS.intersection,
+        "congestion",
+        COLORS.congestion,
+        "distraction",
+        COLORS.distraction,
         COLORS.other,
       ],
       "circle-stroke-color": "#f8fafc",
@@ -450,35 +455,61 @@ export default function MapView() {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const [selectedTypes, setSelectedTypes] = useState(
-    REPORT_TYPES.map((type) => type.id)
+    REPORT_TYPES.map((type) => type.id),
   );
   const [includePending, setIncludePending] = useState(false);
   const [reports, setReports] = useState(() =>
-    normalizeGeoJSON(mockReportPoints)
+    normalizeGeoJSON(mockReportPoints),
   );
   const [mapError, setMapError] = useState("");
   const [selectedReport, setSelectedReport] = useState(null);
   const [mapReady, setMapReady] = useState(false);
-    const [radiusKm, setRadiusKm] = useState(2.5);
-  const police = usePoliceStations(
+  const [radiusKm, setRadiusKm] = useState(2.5);
+  const [selectedStation, setSelectedStation] = useState(null);
+  const responders = useResponderState();
+
+    const police = usePoliceStations(
     mapRef,
     mapReady,
     selectedReport?.coordinates,
-    radiusKm
+    radiusKm,
+    setSelectedStation
   );
   const medical = useMedicalStations(
     mapRef,
     mapReady,
     selectedReport?.coordinates,
-    radiusKm
+    radiusKm,
+    setSelectedStation
   );
-  
-    // Shows just the search radius (used when no personnel type is selected).
+
+    // Close the station card when its layer is hidden.
+  useEffect(() => {
+    if (!selectedStation) return;
+    const stillShown =
+      selectedStation.responderType === "police"
+        ? police.deployed
+        : medical.deployed;
+    if (!stillShown) setSelectedStation(null);
+  }, [selectedStation, police.deployed, medical.deployed]);
+
+  // The selected report is the "scene" that assistance is requested for.
+  const scene = selectedReport?.coordinates
+    ? {
+        reportId: selectedReport.id || selectedReport._reportId,
+        label:
+          REPORT_TYPES.find((t) => t.id === selectedReport.reportType)?.label ||
+          "Report",
+        coordinates: selectedReport.coordinates,
+      }
+    : null;
+
+  // Shows just the search radius (used when no personnel type is selected).
   const radius = useRadiusArea(
     mapRef,
     mapReady,
     selectedReport?.coordinates,
-    radiusKm
+    radiusKm,
   );
 
   // Which personnel types the "Deploy personnel" button will show.
@@ -536,7 +567,7 @@ export default function MapView() {
 
   const visibleReports = useMemo(
     () => filterReports(reports, selectedTypes, includePending),
-    [reports, selectedTypes, includePending]
+    [reports, selectedTypes, includePending],
   );
 
   const metrics = useMemo(() => {
@@ -544,12 +575,10 @@ export default function MapView() {
 
     return {
       total: features.length,
-      verified: features.filter(
-        (feature) => feature.properties.verified
-      ).length,
-      pending: features.filter(
-        (feature) => !feature.properties.verified
-      ).length,
+      verified: features.filter((feature) => feature.properties.verified)
+        .length,
+      pending: features.filter((feature) => !feature.properties.verified)
+        .length,
     };
   }, [visibleReports]);
 
@@ -557,7 +586,7 @@ export default function MapView() {
     setSelectedTypes((current) =>
       current.includes(type)
         ? current.filter((item) => item !== type)
-        : [...current, type]
+        : [...current, type],
     );
   }, []);
 
@@ -615,7 +644,7 @@ export default function MapView() {
         showZoom: true,
         visualizePitch: true,
       }),
-      "top-right"
+      "top-right",
     );
 
     map.addControl(
@@ -624,7 +653,7 @@ export default function MapView() {
         customAttribution:
           '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a> · © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>',
       }),
-      "bottom-right"
+      "bottom-right",
     );
 
     map.on("load", () => {
@@ -652,7 +681,7 @@ export default function MapView() {
               duration: 450,
             });
           }
-        }
+        },
       );
     });
 
@@ -666,10 +695,7 @@ export default function MapView() {
       });
     });
 
-    for (const layerId of [
-      "roadsafe-clusters",
-      "roadsafe-report-points",
-    ]) {
+    for (const layerId of ["roadsafe-clusters", "roadsafe-report-points"]) {
       map.on("mouseenter", layerId, () => {
         map.getCanvas().style.cursor = "pointer";
       });
@@ -685,7 +711,7 @@ export default function MapView() {
       // Only report a startup error if the style has not loaded.
       if (!map.isStyleLoaded()) {
         setMapError(
-          "The map could not finish loading. Check the CARTO style URL, API key, network connection, and browser console."
+          "The map could not finish loading. Check the CARTO style URL, API key, network connection, and browser console.",
         );
       }
     });
@@ -1015,10 +1041,19 @@ export default function MapView() {
 
       <div className="roadsafe-map-layout">
         <div className="roadsafe-map-canvas">
-          <div
-            ref={containerRef}
-            style={{ position: "absolute", inset: 0 }}
-          />
+          <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+          {selectedStation && (
+            <ResponderCard
+              station={selectedStation}
+              scene={scene}
+              data={responders.get(selectedStation.id)}
+              onAssign={(value) => responders.setAssignee(selectedStation.id, value)}
+              onStatus={(value) => responders.setStatus(selectedStation.id, value)}
+              onRequest={() => scene && responders.requestAssistance(selectedStation.id, scene)}
+              onRelease={() => responders.release(selectedStation.id)}
+              onClose={() => setSelectedStation(null)}
+            />
+          )}
         </div>
 
         <aside className="roadsafe-map-sidebar">
@@ -1044,15 +1079,13 @@ export default function MapView() {
               <input
                 type="checkbox"
                 checked={includePending}
-                onChange={(event) =>
-                  setIncludePending(event.target.checked)
-                }
+                onChange={(event) => setIncludePending(event.target.checked)}
               />
               Include unverified reports
             </label>
           </section>
 
-                      <section className="roadsafe-map-panel">
+          <section className="roadsafe-map-panel">
             <h3 className="roadsafe-map-panel-title">Emergency response</h3>
 
             <label className="roadsafe-map-toggle" style={{ marginBottom: 9 }}>
@@ -1083,7 +1116,7 @@ export default function MapView() {
               {police.usingSelectedReport ? "selected report" : "map center"}
             </div>
 
-                        <button
+            <button
               type="button"
               className="roadsafe-map-button"
               onClick={handleDeploy}
@@ -1174,8 +1207,8 @@ export default function MapView() {
                 lineHeight: 1.6,
               }}
             >
-              Clusters represent multiple reports. The heatmap highlights
-              areas with a concentration of incidents.
+              Clusters represent multiple reports. The heatmap highlights areas
+              with a concentration of incidents.
             </div>
           </section>
 

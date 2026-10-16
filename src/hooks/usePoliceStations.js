@@ -17,7 +17,15 @@ export default function usePoliceStations(
   mapRef,
   mapReady,
   centerOverride,
-  radiusKm
+  radiusKm,
+  onSelect
 ) {
-  return useStationLayer(POLICE_CONFIG, mapRef, mapReady, centerOverride, radiusKm);
+  return useStationLayer(
+    POLICE_CONFIG,
+    mapRef,
+    mapReady,
+    centerOverride,
+    radiusKm,
+    onSelect
+  );
 }
