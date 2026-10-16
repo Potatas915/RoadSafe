@@ -19,6 +19,8 @@ import usePoliceStations, {
   RADIUS_OPTIONS_KM,
 } from "../hooks/usePoliceStations.js";
 
+import useMedicalStations from "../hooks/useMedicalStations.js";
+
 const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
 const REPORTS_API_URL = import.meta.env.VITE_REPORTS_API_URL;
 
@@ -455,10 +457,18 @@ export default function MapView() {
   const [mapError, setMapError] = useState("");
   const [selectedReport, setSelectedReport] = useState(null);
   const [mapReady, setMapReady] = useState(false);
-    const police = usePoliceStations(
+    const [radiusKm, setRadiusKm] = useState(2.5);
+  const police = usePoliceStations(
     mapRef,
     mapReady,
-    selectedReport?.coordinates
+    selectedReport?.coordinates,
+    radiusKm
+  );
+  const medical = useMedicalStations(
+    mapRef,
+    mapReady,
+    selectedReport?.coordinates,
+    radiusKm
   );
 
   const visibleReports = useMemo(
@@ -941,15 +951,15 @@ export default function MapView() {
             </label>
           </section>
 
-                              <section className="roadsafe-map-panel">
-            <h3 className="roadsafe-map-panel-title">Police personnel</h3>
+                    <section className="roadsafe-map-panel">
+            <h3 className="roadsafe-map-panel-title">Emergency response</h3>
 
             <label className="roadsafe-map-toggle" style={{ marginBottom: 9 }}>
               Search radius
               <select
-                value={police.radiusKm}
-                onChange={(event) => police.setRadiusKm(event.target.value)}
-                disabled={police.loading}
+                value={radiusKm}
+                onChange={(event) => setRadiusKm(Number(event.target.value))}
+                disabled={police.loading || medical.loading}
                 style={{
                   marginLeft: 8,
                   background: "#202328",
@@ -981,21 +991,48 @@ export default function MapView() {
               {police.loading
                 ? "Loading stations..."
                 : police.deployed
-                  ? "Hide stations"
+                  ? "Hide police"
                   : "Deploy personnel"}
             </button>
 
             {police.deployed && police.stations.length > 0 && (
               <div style={{ marginTop: 9, color: "#aeb4bd", fontSize: 12 }}>
-                {police.stations.length} available station
-                {police.stations.length === 1 ? "" : "s"} within{" "}
-                {police.radiusKm} km
+                {police.stations.length} police station
+                {police.stations.length === 1 ? "" : "s"} within {radiusKm} km
               </div>
             )}
 
             {police.error && (
               <div style={{ marginTop: 9, color: "#f87171", fontSize: 12 }}>
-                {police.error}
+                Police: {police.error}
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="roadsafe-map-button"
+              style={{ marginTop: 12 }}
+              onClick={medical.toggle}
+              disabled={medical.loading}
+            >
+              {medical.loading
+                ? "Loading medics..."
+                : medical.deployed
+                  ? "Hide medics"
+                  : "Deploy medics"}
+            </button>
+
+            {medical.deployed && medical.stations.length > 0 && (
+              <div style={{ marginTop: 9, color: "#aeb4bd", fontSize: 12 }}>
+                {medical.stations.length} medical facilit
+                {medical.stations.length === 1 ? "y" : "ies"} within {radiusKm}{" "}
+                km
+              </div>
+            )}
+
+            {medical.error && (
+              <div style={{ marginTop: 9, color: "#f87171", fontSize: 12 }}>
+                Medical: {medical.error}
               </div>
             )}
           </section>
