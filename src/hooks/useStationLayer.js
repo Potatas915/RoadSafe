@@ -23,7 +23,7 @@ function toGeoJSON(stations) {
 }
 
 // Approximate a circle on the map as a polygon.
-function circleCoordinates([lng, lat], radiusKm, steps = 64) {
+export function circleCoordinates([lng, lat], radiusKm, steps = 64) {
   const coords = [];
   const latRad = (lat * Math.PI) / 180;
   const dLat = radiusKm / 110.574;
@@ -36,7 +36,7 @@ function circleCoordinates([lng, lat], radiusKm, steps = 64) {
   return coords;
 }
 
-function areaGeoJSON(area) {
+export function areaGeoJSON(area) {
   if (!area) return EMPTY;
   return {
     type: "FeatureCollection",
@@ -333,6 +333,7 @@ export default function useStationLayer(
     toggle,
     show,
     hide,
+    area,
     usingSelectedReport: Boolean(centerOverride),
   };
 }

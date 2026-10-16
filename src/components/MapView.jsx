@@ -21,6 +21,8 @@ import usePoliceStations, {
 
 import useMedicalStations from "../hooks/useMedicalStations.js";
 
+import useRadiusArea from "../hooks/useRadiusArea.js";
+
 const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
 const REPORTS_API_URL = import.meta.env.VITE_REPORTS_API_URL;
 
@@ -470,32 +472,66 @@ export default function MapView() {
     selectedReport?.coordinates,
     radiusKm
   );
-    // Which personnel types the "Deploy personnel" button will show.
+  
+    // Shows just the search radius (used when no personnel type is selected).
+  const radius = useRadiusArea(
+    mapRef,
+    mapReady,
+    selectedReport?.coordinates,
+    radiusKm
+  );
+
+  // Which personnel types the "Deploy personnel" button will show.
   const [pickPolice, setPickPolice] = useState(true);
   const [pickMedical, setPickMedical] = useState(true);
   const anyDeployed = police.deployed || medical.deployed;
   const anyLoading = police.loading || medical.loading;
 
   const handleDeploy = () => {
-    if (anyDeployed) {
+    if (anyDeployed || radius.active) {
       police.hide();
       medical.hide();
+      radius.hide();
+      return;
+    }
+    // Nothing selected: just show the radius.
+    if (!pickPolice && !pickMedical) {
+      radius.show();
       return;
     }
     if (pickPolice) police.show();
     if (pickMedical) medical.show();
   };
 
-  // While deployed, ticking/unticking a type shows/hides it right away.
-  const togglePolice = () => {
-    const next = !pickPolice;
-    setPickPolice(next);
-    if (anyDeployed) (next ? police.show : police.hide)();
-  };
-  const toggleMedical = () => {
-    const next = !pickMedical;
-    setPickMedical(next);
-    if (anyDeployed) (next ? medical.show : medical.hide)();
+  // While something is showing, changing the selection updates the map right away.
+  const applyPicks = (nextPolice, nextMedical) => {
+    const wasShowing = anyDeployed || radius.active;
+    setPickPolice(nextPolice);
+    setPickMedical(nextMedical);
+    if (!wasShowing) return;
+
+    if (!nextPolice && !nextMedical) {
+      const center =
+        (police.deployed && police.area?.center) ||
+        (medical.deployed && medical.area?.center) ||
+        undefined;
+      police.hide();
+      medical.hide();
+      radius.show(center);
+      return;
+    }
+
+    radius.hide();
+    if (nextPolice) {
+      if (!police.deployed) police.show();
+    } else {
+      police.hide();
+    }
+    if (nextMedical) {
+      if (!medical.deployed) medical.show();
+    } else {
+      medical.hide();
+    }
   };
 
   const visibleReports = useMemo(
@@ -859,44 +895,44 @@ export default function MapView() {
           padding: 6px 9px;
           cursor: pointer;
         }
-                .roadsafe-map-chips {
+        
+                .roadsafe-pick-row {
           display: flex;
           flex-wrap: wrap;
           gap: 6px;
           margin-top: 9px;
         }
-        .roadsafe-map-chip {
-          --chip-color: #9ca3af;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 3px 10px 3px 7px;
+        .roadsafe-pick {
+          --pick-color: #9ca3af;
+          padding: 3px 12px;
           border: 1px solid #41464e;
           background: #1b1e22;
-          color: #aeb4bd;
+          color: #8b919a;
           border-radius: 999px;
           font-size: 12px;
           cursor: pointer;
           user-select: none;
-          transition: border-color .15s, color .15s, background .15s;
+          transition: border-color .15s, color .15s, background .15s,
+            box-shadow .15s;
         }
-        .roadsafe-map-chip:hover {
+        .roadsafe-pick:hover:not(:disabled) {
           background: #22262b;
+          color: #c5cad1;
         }
-        .roadsafe-map-chip input {
-          width: 13px;
-          height: 13px;
-          margin: 0;
-          accent-color: var(--chip-color);
-          cursor: pointer;
+        .roadsafe-pick:disabled {
+          opacity: .6;
+          cursor: default;
         }
-        .roadsafe-map-chip.is-on {
-          border-color: var(--chip-color);
-          color: #e5e7eb;
+        .roadsafe-pick.is-on {
+          border-color: var(--pick-color);
+          color: #fff;
           background: #22262b;
+          box-shadow: 0 0 0 1px var(--pick-color),
+            0 0 12px color-mix(in srgb, var(--pick-color) 55%, transparent);
         }
-        .roadsafe-map-chip.is-police { --chip-color: #3b82f6; }
-        .roadsafe-map-chip.is-medic { --chip-color: #ef4444; }
+        .roadsafe-pick.is-police { --pick-color: #3b82f6; }
+        .roadsafe-pick.is-medic { --pick-color: #ef4444; }
+
         .roadsafe-map-error {
           position: absolute;
           z-index: 5;
@@ -1047,43 +1083,47 @@ export default function MapView() {
               {police.usingSelectedReport ? "selected report" : "map center"}
             </div>
 
-            <button
+                        <button
               type="button"
               className="roadsafe-map-button"
               onClick={handleDeploy}
-              disabled={anyLoading || (!anyDeployed && !pickPolice && !pickMedical)}
+              disabled={anyLoading}
             >
               {anyLoading
                 ? "Loading..."
                 : anyDeployed
                   ? "Hide personnel"
-                  : "Deploy personnel"}
+                  : radius.active
+                    ? "Hide radius"
+                    : "Deploy personnel"}
             </button>
 
-            <div className="roadsafe-map-chips">
-              <label
-                className={`roadsafe-map-chip is-police${pickPolice ? " is-on" : ""}`}
+            <div className="roadsafe-pick-row">
+              <button
+                type="button"
+                aria-pressed={pickPolice}
+                className={`roadsafe-pick is-police${pickPolice ? " is-on" : ""}`}
+                onClick={() => applyPicks(!pickPolice, pickMedical)}
+                disabled={anyLoading}
               >
-                <input
-                  type="checkbox"
-                  checked={pickPolice}
-                  onChange={togglePolice}
-                  disabled={anyLoading}
-                />
                 Police
-              </label>
-              <label
-                className={`roadsafe-map-chip is-medic${pickMedical ? " is-on" : ""}`}
+              </button>
+              <button
+                type="button"
+                aria-pressed={pickMedical}
+                className={`roadsafe-pick is-medic${pickMedical ? " is-on" : ""}`}
+                onClick={() => applyPicks(pickPolice, !pickMedical)}
+                disabled={anyLoading}
               >
-                <input
-                  type="checkbox"
-                  checked={pickMedical}
-                  onChange={toggleMedical}
-                  disabled={anyLoading}
-                />
                 Medics
-              </label>
+              </button>
             </div>
+
+            {radius.active && (
+              <div style={{ marginTop: 9, color: "#aeb4bd", fontSize: 12 }}>
+                Showing {radiusKm} km radius
+              </div>
+            )}
 
             {police.deployed && police.stations.length > 0 && (
               <div style={{ marginTop: 9, color: "#aeb4bd", fontSize: 12 }}>
