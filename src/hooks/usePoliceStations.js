@@ -5,10 +5,10 @@ import {
   filterByRadius,
 } from "../services/policeStations.js";
 
-export const RADIUS_OPTIONS_KM = [1, 1.5, 2, 2.5];
+export const RADIUS_OPTIONS_KM = [1, 1.5, 2, 2.5, 3, 3.5];
 
 const SOURCE_ID = "roadsafe-police-stations";
-const HALO_LAYER_ID = "roadsafe-police-stations-halo";
+const ICON_ID = "roadsafe-police-badge";
 const LAYER_ID = "roadsafe-police-stations-layer";
 const AREA_SOURCE_ID = "roadsafe-police-area";
 const AREA_FILL_ID = "roadsafe-police-area-fill";
@@ -59,7 +59,37 @@ function areaGeoJSON(area) {
   };
 }
 
-function ensureLayers(map) {
+// Police badge: blue circle, white shield, blue star.
+const BADGE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="#2563eb" stroke="#ffffff" stroke-width="4"/><path d="M32 13.5 L46 18.8 V31 C46 39.5 40.5 45.5 32 49.5 C23.5 45.5 18 39.5 18 31 V18.8 Z" fill="#ffffff"/><polygon points="32.0,23.0 34.1,28.6 40.1,28.9 35.4,32.6 37.0,38.4 32.0,35.1 27.0,38.4 28.6,32.6 23.9,28.9 29.9,28.6" fill="#2563eb"/></svg>`;
+
+// Turns the SVG into an image MapLibre can use as a map icon.
+function loadBadgeImage(map) {
+  if (map.hasImage(ICON_ID)) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const image = new Image(128, 128);
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0, 128, 128);
+
+      if (!map.hasImage(ICON_ID)) {
+        map.addImage(ICON_ID, ctx.getImageData(0, 0, 128, 128), {
+          pixelRatio: 2,
+        });
+      }
+      resolve();
+    };
+    image.onerror = () => reject(new Error("Could not create police icon"));
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(BADGE_SVG)}`;
+  });
+}
+
+async function ensureLayers(map) {
+  await loadBadgeImage(map);
+
   if (!map.getSource(AREA_SOURCE_ID)) {
     map.addSource(AREA_SOURCE_ID, { type: "geojson", data: EMPTY });
   }
@@ -86,28 +116,16 @@ function ensureLayers(map) {
       },
     });
   }
-  if (!map.getLayer(HALO_LAYER_ID)) {
-    map.addLayer({
-      id: HALO_LAYER_ID,
-      type: "circle",
-      source: SOURCE_ID,
-      paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 9, 14, 16],
-        "circle-color": COLOR,
-        "circle-opacity": 0.25,
-      },
-    });
-  }
   if (!map.getLayer(LAYER_ID)) {
     map.addLayer({
       id: LAYER_ID,
-      type: "circle",
+      type: "symbol",
       source: SOURCE_ID,
-      paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 5, 14, 8],
-        "circle-color": COLOR,
-        "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 2,
+      layout: {
+        "icon-image": ICON_ID,
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 8, 0.2, 14, 0.35],
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
       },
     });
   }
@@ -132,9 +150,21 @@ export default function usePoliceStations(mapRef, mapReady, centerOverride) {
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    ensureLayers(map);
-    map.getSource(SOURCE_ID).setData(deployed ? toGeoJSON(stations) : EMPTY);
-    map.getSource(AREA_SOURCE_ID).setData(deployed ? areaGeoJSON(area) : EMPTY);
+    let cancelled = false;
+
+    ensureLayers(map)
+      .then(() => {
+        if (cancelled || !map.getSource(SOURCE_ID)) return;
+        map.getSource(SOURCE_ID).setData(deployed ? toGeoJSON(stations) : EMPTY);
+        map
+          .getSource(AREA_SOURCE_ID)
+          .setData(deployed ? areaGeoJSON(area) : EMPTY);
+      })
+      .catch((err) => console.error("Police layer setup failed:", err));
+
+    return () => {
+      cancelled = true;
+    };
   }, [deployed, stations, area, mapReady, mapRef]);
 
   // Popup + pointer cursor
