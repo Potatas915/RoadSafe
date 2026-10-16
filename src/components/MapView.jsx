@@ -470,6 +470,33 @@ export default function MapView() {
     selectedReport?.coordinates,
     radiusKm
   );
+    // Which personnel types the "Deploy personnel" button will show.
+  const [pickPolice, setPickPolice] = useState(true);
+  const [pickMedical, setPickMedical] = useState(true);
+  const anyDeployed = police.deployed || medical.deployed;
+  const anyLoading = police.loading || medical.loading;
+
+  const handleDeploy = () => {
+    if (anyDeployed) {
+      police.hide();
+      medical.hide();
+      return;
+    }
+    if (pickPolice) police.show();
+    if (pickMedical) medical.show();
+  };
+
+  // While deployed, ticking/unticking a type shows/hides it right away.
+  const togglePolice = () => {
+    const next = !pickPolice;
+    setPickPolice(next);
+    if (anyDeployed) (next ? police.show : police.hide)();
+  };
+  const toggleMedical = () => {
+    const next = !pickMedical;
+    setPickMedical(next);
+    if (anyDeployed) (next ? medical.show : medical.hide)();
+  };
 
   const visibleReports = useMemo(
     () => filterReports(reports, selectedTypes, includePending),
@@ -832,6 +859,44 @@ export default function MapView() {
           padding: 6px 9px;
           cursor: pointer;
         }
+                .roadsafe-map-chips {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 9px;
+        }
+        .roadsafe-map-chip {
+          --chip-color: #9ca3af;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 3px 10px 3px 7px;
+          border: 1px solid #41464e;
+          background: #1b1e22;
+          color: #aeb4bd;
+          border-radius: 999px;
+          font-size: 12px;
+          cursor: pointer;
+          user-select: none;
+          transition: border-color .15s, color .15s, background .15s;
+        }
+        .roadsafe-map-chip:hover {
+          background: #22262b;
+        }
+        .roadsafe-map-chip input {
+          width: 13px;
+          height: 13px;
+          margin: 0;
+          accent-color: var(--chip-color);
+          cursor: pointer;
+        }
+        .roadsafe-map-chip.is-on {
+          border-color: var(--chip-color);
+          color: #e5e7eb;
+          background: #22262b;
+        }
+        .roadsafe-map-chip.is-police { --chip-color: #3b82f6; }
+        .roadsafe-map-chip.is-medic { --chip-color: #ef4444; }
         .roadsafe-map-error {
           position: absolute;
           z-index: 5;
@@ -951,7 +1016,7 @@ export default function MapView() {
             </label>
           </section>
 
-                    <section className="roadsafe-map-panel">
+                      <section className="roadsafe-map-panel">
             <h3 className="roadsafe-map-panel-title">Emergency response</h3>
 
             <label className="roadsafe-map-toggle" style={{ marginBottom: 9 }}>
@@ -959,7 +1024,7 @@ export default function MapView() {
               <select
                 value={radiusKm}
                 onChange={(event) => setRadiusKm(Number(event.target.value))}
-                disabled={police.loading || medical.loading}
+                disabled={anyLoading}
                 style={{
                   marginLeft: 8,
                   background: "#202328",
@@ -985,20 +1050,53 @@ export default function MapView() {
             <button
               type="button"
               className="roadsafe-map-button"
-              onClick={police.toggle}
-              disabled={police.loading}
+              onClick={handleDeploy}
+              disabled={anyLoading || (!anyDeployed && !pickPolice && !pickMedical)}
             >
-              {police.loading
-                ? "Loading stations..."
-                : police.deployed
-                  ? "Hide police"
+              {anyLoading
+                ? "Loading..."
+                : anyDeployed
+                  ? "Hide personnel"
                   : "Deploy personnel"}
             </button>
+
+            <div className="roadsafe-map-chips">
+              <label
+                className={`roadsafe-map-chip is-police${pickPolice ? " is-on" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={pickPolice}
+                  onChange={togglePolice}
+                  disabled={anyLoading}
+                />
+                Police
+              </label>
+              <label
+                className={`roadsafe-map-chip is-medic${pickMedical ? " is-on" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={pickMedical}
+                  onChange={toggleMedical}
+                  disabled={anyLoading}
+                />
+                Medics
+              </label>
+            </div>
 
             {police.deployed && police.stations.length > 0 && (
               <div style={{ marginTop: 9, color: "#aeb4bd", fontSize: 12 }}>
                 {police.stations.length} police station
                 {police.stations.length === 1 ? "" : "s"} within {radiusKm} km
+              </div>
+            )}
+
+            {medical.deployed && medical.stations.length > 0 && (
+              <div style={{ marginTop: 6, color: "#aeb4bd", fontSize: 12 }}>
+                {medical.stations.length} medical facilit
+                {medical.stations.length === 1 ? "y" : "ies"} within {radiusKm}{" "}
+                km
               </div>
             )}
 
@@ -1008,30 +1106,8 @@ export default function MapView() {
               </div>
             )}
 
-            <button
-              type="button"
-              className="roadsafe-map-button"
-              style={{ marginTop: 12 }}
-              onClick={medical.toggle}
-              disabled={medical.loading}
-            >
-              {medical.loading
-                ? "Loading medics..."
-                : medical.deployed
-                  ? "Hide medics"
-                  : "Deploy medics"}
-            </button>
-
-            {medical.deployed && medical.stations.length > 0 && (
-              <div style={{ marginTop: 9, color: "#aeb4bd", fontSize: 12 }}>
-                {medical.stations.length} medical facilit
-                {medical.stations.length === 1 ? "y" : "ies"} within {radiusKm}{" "}
-                km
-              </div>
-            )}
-
             {medical.error && (
-              <div style={{ marginTop: 9, color: "#f87171", fontSize: 12 }}>
+              <div style={{ marginTop: 6, color: "#f87171", fontSize: 12 }}>
                 Medical: {medical.error}
               </div>
             )}

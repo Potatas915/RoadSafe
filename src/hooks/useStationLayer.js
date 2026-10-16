@@ -320,12 +320,19 @@ export default function useStationLayer(
     else deploy(radiusKm, centerOverride);
   }, [deployed, deploy, hide, radiusKm, centerOverride]);
 
+    const show = useCallback(
+    () => deploy(radiusKm, centerOverride),
+    [deploy, radiusKm, centerOverride]
+  );
+
   return {
     deployed,
     stations,
     loading,
     error,
     toggle,
+    show,
+    hide,
     usingSelectedReport: Boolean(centerOverride),
   };
 }
