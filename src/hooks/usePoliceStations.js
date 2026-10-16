@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Popup } from "maplibre-gl";
-import { fetchPoliceStations } from "../services/policeStations.js";
+import {
+  loadPoliceStations,
+  filterByRadius,
+} from "../services/policeStations.js";
 
 export const RADIUS_OPTIONS_KM = [1, 1.5, 2, 2.5];
 
@@ -177,6 +180,14 @@ export default function usePoliceStations(mapRef, mapReady, centerOverride) {
     };
   }, [mapReady, mapRef]);
 
+  // Download + cache all stations in the background as soon as the app starts.
+  // Nothing is drawn on the map until "Deploy personnel" is pressed.
+  useEffect(() => {
+    loadPoliceStations().catch((err) => {
+      console.warn("Police station preload failed (will retry on deploy):", err);
+    });
+  }, []);
+
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const hide = useCallback(() => {
@@ -201,11 +212,11 @@ export default function usePoliceStations(mapRef, mapReady, centerOverride) {
       setError("");
 
       try {
-        const results = await fetchPoliceStations({
-          center,
-          radiusKm: radius,
-          signal: controller.signal,
-        });
+        // Instant when the background preload has finished; otherwise waits for it.
+        const all = await loadPoliceStations();
+        if (controller.signal.aborted) return;
+
+        const results = filterByRadius(all, center, radius);
 
         const nextArea = { center, radiusKm: radius };
         setStations(results);
