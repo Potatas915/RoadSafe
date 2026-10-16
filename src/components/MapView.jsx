@@ -15,6 +15,10 @@ setWorkerUrl(workerUrl);
 
 import { reportPoints as mockReportPoints } from "../data/reportPoints.js";
 
+import usePoliceStations, {
+  RADIUS_OPTIONS_KM,
+} from "../hooks/usePoliceStations.js";
+
 const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
 const REPORTS_API_URL = import.meta.env.VITE_REPORTS_API_URL;
 
@@ -451,6 +455,11 @@ export default function MapView() {
   const [mapError, setMapError] = useState("");
   const [selectedReport, setSelectedReport] = useState(null);
   const [mapReady, setMapReady] = useState(false);
+    const police = usePoliceStations(
+    mapRef,
+    mapReady,
+    selectedReport?.coordinates
+  );
 
   const visibleReports = useMemo(
     () => filterReports(reports, selectedTypes, includePending),
@@ -930,6 +939,65 @@ export default function MapView() {
               />
               Include unverified reports
             </label>
+          </section>
+
+                              <section className="roadsafe-map-panel">
+            <h3 className="roadsafe-map-panel-title">Police personnel</h3>
+
+            <label className="roadsafe-map-toggle" style={{ marginBottom: 9 }}>
+              Search radius
+              <select
+                value={police.radiusKm}
+                onChange={(event) => police.setRadiusKm(event.target.value)}
+                disabled={police.loading}
+                style={{
+                  marginLeft: 8,
+                  background: "#202328",
+                  color: "#e5e7eb",
+                  border: "1px solid #393e45",
+                  borderRadius: 6,
+                  padding: "3px 6px",
+                }}
+              >
+                {RADIUS_OPTIONS_KM.map((km) => (
+                  <option key={km} value={km}>
+                    {km} km
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div style={{ marginBottom: 9, color: "#858c96", fontSize: 11 }}>
+              Around:{" "}
+              {police.usingSelectedReport ? "selected report" : "map center"}
+            </div>
+
+            <button
+              type="button"
+              className="roadsafe-map-button"
+              onClick={police.toggle}
+              disabled={police.loading}
+            >
+              {police.loading
+                ? "Loading stations..."
+                : police.deployed
+                  ? "Hide stations"
+                  : "Deploy personnel"}
+            </button>
+
+            {police.deployed && police.stations.length > 0 && (
+              <div style={{ marginTop: 9, color: "#aeb4bd", fontSize: 12 }}>
+                {police.stations.length} available station
+                {police.stations.length === 1 ? "" : "s"} within{" "}
+                {police.radiusKm} km
+              </div>
+            )}
+
+            {police.error && (
+              <div style={{ marginTop: 9, color: "#f87171", fontSize: 12 }}>
+                {police.error}
+              </div>
+            )}
           </section>
 
           <section className="roadsafe-map-panel">
