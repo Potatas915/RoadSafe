@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { filterByRadius } from "../services/policeStations.js";
 
-export const RADIUS_OPTIONS_KM = [1, 1.5, 2, 2.5, 3, 3.5];
+export const RADIUS_OPTIONS_KM = [1, 1.5, 2, 2.5, 3, 3.5, 10];
 
 const EMPTY = { type: "FeatureCollection", features: [] };
 

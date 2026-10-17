@@ -24,6 +24,8 @@ import useRadiusArea from "../hooks/useRadiusArea.js";
 
 import useResponderState from "../hooks/useResponderState.js";
 import ResponderCard from "./ResponderCard.jsx";
+import MapReportCard from "./MapReportCard.jsx";
+import { luzonReportsResponse, LUZON_SAMPLE_BOUNDS } from "../data/luzonReports.js";
 
 const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
 
@@ -300,9 +302,11 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const [selectedTypes, setSelectedTypes] = useState(
     REPORT_TYPES.map((type) => type.id),
   );
-  const [includePending, setIncludePending] = useState(false);
+  const [sampleMode, setSampleMode] = useState(true);
+  const mapRecords = sampleMode ? luzonReportsResponse.data : reportRecords;
+  const [includePending, setIncludePending] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState("");
-  const reports = useMemo(() => reportsToGeoJSON(reportRecords), [reportRecords]);
+  const reports = useMemo(() => reportsToGeoJSON(mapRecords), [mapRecords]);
   const [mapError, setMapError] = useState("");
   const [selectedReportId, setSelectedReportId] = useState(null);
   const selectedFeature = reports.features.find((feature) => feature.id === selectedReportId
@@ -311,6 +315,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const selectedReport = useMemo(() => selectedFeature ? {
     ...selectedFeature.properties, coordinates: selectedFeature.geometry.coordinates,
   } : null, [selectedFeature]);
+  const selectedRecord = selectedFeature ? mapRecords.find((report) => report.id === selectedReportId) : null;
   useEffect(() => {
     if (selectedReportId && !selectedFeature) setSelectedReportId(null);
   }, [selectedReportId, selectedFeature]);
@@ -318,6 +323,18 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const [radiusKm, setRadiusKm] = useState(2.5);
   const [selectedStation, setSelectedStation] = useState(null);
   const responders = useResponderState();
+  const focusIncident = useCallback((coordinates) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const width = map.getContainer().clientWidth;
+    map.flyTo({
+      center: coordinates,
+      zoom: Math.max(map.getZoom(), 15),
+      // Leave the incident visible beside the wider card on desktop.
+      offset: width >= 760 ? [Math.min(240, width / 4), 0] : [0, -100],
+      duration: 700,
+    });
+  }, []);
 
     // Use the selected report as the search center only while it is visible on the
   // map. If you pan somewhere else, deploying uses the map center instead.
@@ -524,6 +541,8 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
       if (!feature) return;
 
       setSelectedReportId(feature.properties.id);
+      setSelectedStation(null);
+      focusIncident(feature.geometry.coordinates);
     });
 
     for (const layerId of ["roadsafe-clusters", "roadsafe-report-points"]) {
@@ -578,6 +597,10 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   }, []);
 
   const resetMap = useCallback(() => {
+    if (sampleMode) {
+      mapRef.current?.fitBounds(LUZON_SAMPLE_BOUNDS, { padding: 35, duration: 700, pitch: 0, bearing: 0 });
+      return;
+    }
     mapRef.current?.flyTo({
       center: INITIAL_CENTER,
       zoom: 10,
@@ -585,17 +608,17 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
       bearing: 0,
       duration: 700,
     });
-  }, []);
+  }, [sampleMode]);
+
+  useEffect(() => {
+    if (mapReady) resetMap();
+  }, [mapReady, resetMap]);
 
   const focusSelectedReport = useCallback(() => {
     if (!selectedReport?.coordinates || !mapRef.current) return;
 
-    mapRef.current.flyTo({
-      center: selectedReport.coordinates,
-      zoom: 15,
-      duration: 700,
-    });
-  }, [selectedReport]);
+    focusIncident(selectedReport.coordinates);
+  }, [selectedReport, focusIncident]);
 
   return (
     <div className="roadsafe-map-page">
@@ -848,11 +871,22 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
         <div>
           <h2 className="roadsafe-map-title">Road Safety Map</h2>
           <p className="roadsafe-map-subtitle">
-            Accident reports and traffic-risk locations
+            {sampleMode ? "Luzon sample incidents · fictional, browser-only" : "Accident reports and traffic-risk locations"}
           </p>
         </div>
 
         <div className="roadsafe-map-chip">
+          <select aria-label="Map report source" value={sampleMode ? "samples" : "existing"}
+            className="bg-darkBg border border-darkBorder rounded p-1 text-xs min-w-0"
+            onChange={(event) => {
+              const samples = event.target.value === "samples";
+              setSampleMode(samples); setIncludePending(samples); setSelectedStatus("");
+              setSelectedReportId(null); setSelectedStation(null);
+              police.hide(); medical.hide(); radius.hide();
+            }}>
+            <option value="samples">Luzon samples</option>
+            <option value="existing">Existing reports</option>
+          </select>
           <span
             style={{
               width: 7,
@@ -893,6 +927,12 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
       <div className="roadsafe-map-layout">
         <div className="roadsafe-map-canvas">
           <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+          {selectedRecord && !selectedStation && <MapReportCard
+            report={selectedRecord}
+            onClose={() => setSelectedReportId(null)}
+            onZoom={focusSelectedReport}
+            onOpenReport={sampleMode ? undefined : onOpenReport}
+          />}
           {selectedStation && (
             <ResponderCard
               key={selectedStation.id}
@@ -1041,50 +1081,6 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             )}
           </section>
 
-          {selectedReport && (
-            <section className="roadsafe-map-details">
-              <strong style={{ color: "#f3f4f6" }}>Selected report</strong>
-
-              <div style={{ marginTop: 8, color: "#aeb4bd" }}>
-                Type: {REPORT_TYPES.find((type) => type.id === selectedReport.reportType)?.label}
-              </div>
-
-              <div style={{ marginTop: 5, color: "#aeb4bd" }}>
-                Status: {selectedReport.status}
-              </div>
-
-              <div style={{ marginTop: 5, color: "#aeb4bd" }}>
-                Coordinates:{" "}
-                {selectedReport.coordinates
-                  ?.map((value) => Number(value).toFixed(5))
-                  .join(", ")}
-              </div>
-
-              {selectedReport.description && (
-                <div style={{ marginTop: 7, color: "#d1d5db" }}>
-                  {selectedReport.description}
-                </div>
-              )}
-
-              <button type="button" className="roadsafe-map-button" onClick={focusSelectedReport}>Zoom to report</button>
-              <button
-                type="button"
-                className="roadsafe-map-button"
-                onClick={() => onOpenReport(selectedReport.id)}
-              >
-                View report details
-              </button>
-
-              <button
-                type="button"
-                className="roadsafe-map-button"
-                onClick={() => setSelectedReportId(null)}
-                style={{ marginLeft: 6 }}
-              >
-                Close
-              </button>
-            </section>
-          )}
         </aside>
       </div>
     </div>
