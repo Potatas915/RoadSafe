@@ -1,21 +1,7 @@
-import { officers } from './mock.js'
+import { ROLES } from '../models/report.js'
 
-// Police officers come from the existing Officers list.
-export const POLICE_OFFICERS = officers.map((o) => ({
-  id: o.name,
-  name: o.name,
-  code: o.unit.split(' | ')[0],
-}))
-
-// Sample medical responders. Replace with data from your backend.
-export const MEDIC_TEAMS = [
-  { id: 'Medic Ana Reyes', name: 'Medic Ana Reyes', code: 'MED-02' },
-  { id: 'Medic Paolo Cruz', name: 'Medic Paolo Cruz', code: 'MED-05' },
-  { id: 'Ambulance Unit A-1', name: 'Ambulance Unit A-1', code: 'AMB-01' },
-]
-
-export function getAssignees(responderType) {
-  return responderType === 'medical' ? MEDIC_TEAMS : POLICE_OFFICERS
+export function getAssignees(responderType, users) {
+  return users.filter((user) => user.role === ROLES.OFFICER && user.responderType === responderType).map((user) => ({ id: user.id, name: user.name, code: user.unit }))
 }
 
 export const RESPONDER_STATUSES = [

@@ -44,6 +44,7 @@ const select =
  */
 export default function ResponderCard({
   station,
+  users,
   scene,
   data,
   onAssign,
@@ -55,7 +56,7 @@ export default function ResponderCard({
   if (!station) return null
 
   const ui = TYPE_UI[station.responderType] || TYPE_UI.police
-  const assignees = getAssignees(station.responderType)
+  const assignees = getAssignees(station.responderType, users)
   const hasScene = Boolean(scene?.coordinates)
   const distance = hasScene
     ? distanceKm([station.lng, station.lat], scene.coordinates)

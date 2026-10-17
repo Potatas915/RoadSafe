@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 // Assignment + status for each police station / medical facility, keyed by
 // station id. Saved in this browser's localStorage (no backend yet).
 
-const STORAGE_KEY = "roadsafe:responders:v1";
+// v2 uses stable included-user IDs; old name-based demo state remains untouched in v1.
+const STORAGE_KEY = "roadsafe:responders:v2";
 const DEFAULT = { assignee: "", status: "Available", request: null };
 
 function read() {

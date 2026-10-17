@@ -6,7 +6,7 @@ export default function TopBar() {
           <i className="fa-solid fa-location-dot text-orange-500"></i> Region: Central Luzon / Bulacan
         </div>
         <span className="px-2.5 py-0.5 rounded-full text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Live Telemetry Active
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Web prototype
         </span>
       </div>
 

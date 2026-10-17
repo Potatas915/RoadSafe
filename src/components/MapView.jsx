@@ -12,7 +12,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 setWorkerUrl(workerUrl);
 
-import { reportPoints as mockReportPoints } from "../data/reportPoints.js";
+import { ACCIDENT_CATEGORIES, REPORT_STATUSES, reportsToGeoJSON } from "../models/report.js";
 
 import usePoliceStations, {
   RADIUS_OPTIONS_KM,
@@ -26,7 +26,7 @@ import useResponderState from "../hooks/useResponderState.js";
 import ResponderCard from "./ResponderCard.jsx";
 
 const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
-const REPORTS_API_URL = import.meta.env.VITE_REPORTS_API_URL;
+
 
 const MAP_STYLE = `https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json${
   CARTO_API_KEY ? `?key=${encodeURIComponent(CARTO_API_KEY)}` : ""
@@ -40,150 +40,13 @@ const COLORS = {
   buildings: "#2c2f34",
   water: "#191c20",
   labels: "#aeb3bb",
-  intersection: "#f59e0b",
-  congestion: "#ef4444",
-  distraction: "#a78bfa",
-  other: "#38bdf8",
 };
 
-const REPORT_TYPES = [
-  { id: "intersection", label: "Intersections", color: COLORS.intersection },
-  { id: "congestion", label: "Congestion", color: COLORS.congestion },
-  { id: "distraction", label: "Distraction", color: COLORS.distraction },
-  { id: "other", label: "Other reports", color: COLORS.other },
-];
-
+const REPORT_TYPES = ACCIDENT_CATEGORIES;
+const REPORT_COLOR = ["match", ["get", "reportType"],
+  ...ACCIDENT_CATEGORIES.filter((c) => c.id !== "other").flatMap((c) => [c.id, c.color]),
+  ACCIDENT_CATEGORIES.find((c) => c.id === "other").color];
 const INITIAL_CENTER = [120.88, 14.85];
-
-function getReportType(properties = {}) {
-  const value = String(
-    properties.reportType ??
-      properties.report_type ??
-      properties.type ??
-      properties.category ??
-      "other",
-  ).toLowerCase();
-
-  if (value.includes("intersection") || value.includes("crossroad")) {
-    return "intersection";
-  }
-
-  if (value.includes("congestion") || value.includes("traffic")) {
-    return "congestion";
-  }
-
-  if (
-    value.includes("distraction") ||
-    value.includes("distract") ||
-    value.includes("phone")
-  ) {
-    return "distraction";
-  }
-
-  return "other";
-}
-
-function isVerified(properties = {}) {
-  const value =
-    properties.verified ??
-    properties.isVerified ??
-    properties.is_verified ??
-    properties.status;
-
-  if (typeof value === "boolean") return value;
-
-  if (typeof value === "number") return value === 1;
-
-  if (typeof value === "string") {
-    return ["verified", "approved", "confirmed"].includes(
-      value.toLowerCase().trim(),
-    );
-  }
-
-  return false;
-}
-
-function normalizeGeoJSON(input) {
-  const points =
-    input?.type === "FeatureCollection" && Array.isArray(input.features)
-      ? input.features
-      : Array.isArray(input)
-        ? input
-        : Array.isArray(input?.features)
-          ? input.features
-          : Array.isArray(input?.reports)
-            ? input.reports
-            : Array.isArray(input?.data)
-              ? input.data
-              : [];
-
-  const features = points
-    .map((item, index) => {
-      const isFeature = item?.type === "Feature" && item.geometry;
-      const properties = item?.properties || item || {};
-
-      let longitude;
-      let latitude;
-
-      if (isFeature && item.geometry.type === "Point") {
-        [longitude, latitude] = item.geometry.coordinates || [];
-      } else {
-        longitude =
-          item?.longitude ??
-          item?.lng ??
-          item?.lon ??
-          properties.longitude ??
-          properties.lng ??
-          properties.lon;
-
-        latitude =
-          item?.latitude ?? item?.lat ?? properties.latitude ?? properties.lat;
-      }
-
-      longitude = Number(longitude);
-      latitude = Number(latitude);
-
-      if (
-        !Number.isFinite(longitude) ||
-        !Number.isFinite(latitude) ||
-        longitude < -180 ||
-        longitude > 180 ||
-        latitude < -90 ||
-        latitude > 90
-      ) {
-        return null;
-      }
-
-      const reportType = getReportType(properties);
-      const verified = isVerified(properties);
-      const severity = Number(properties.severity ?? 3);
-
-      return {
-        type: "Feature",
-        id: String(item?.id ?? properties._reportId ?? index),
-        geometry: {
-          type: "Point",
-          coordinates: [longitude, latitude],
-        },
-        properties: {
-          ...properties,
-          reportType,
-          verified,
-          _reportId: String(item?.id ?? properties._reportId ?? index),
-          _severityWeight: Number.isFinite(severity)
-            ? Math.max(1, Math.min(5, severity))
-            : 3,
-          description: String(
-            properties.description ?? properties.details ?? "",
-          ),
-        },
-      };
-    })
-    .filter(Boolean);
-
-  return { type: "FeatureCollection", features };
-}
-
 function applyRoadSafeBasemapStyle(map) {
   const layers = map.getStyle()?.layers || [];
 
@@ -296,7 +159,7 @@ function addReportLayers(map) {
         ["get", "_severityWeight"],
         1,
         0.25,
-        5,
+        3,
         1,
       ],
       "heatmap-intensity": [
@@ -386,17 +249,7 @@ function addReportLayers(map) {
     filter: ["!", ["has", "point_count"]],
     paint: {
       "circle-radius": 15,
-      "circle-color": [
-        "match",
-        ["get", "reportType"],
-        "intersection",
-        COLORS.intersection,
-        "congestion",
-        COLORS.congestion,
-        "distraction",
-        COLORS.distraction,
-        COLORS.other,
-      ],
+      "circle-color": REPORT_COLOR,
       "circle-opacity": 0.16,
       "circle-blur": 0.9,
     },
@@ -419,17 +272,7 @@ function addReportLayers(map) {
         16,
         8,
       ],
-      "circle-color": [
-        "match",
-        ["get", "reportType"],
-        "intersection",
-        COLORS.intersection,
-        "congestion",
-        COLORS.congestion,
-        "distraction",
-        COLORS.distraction,
-        COLORS.other,
-      ],
+      "circle-color": REPORT_COLOR,
       "circle-stroke-color": "#f8fafc",
       "circle-stroke-width": 1.25,
       "circle-opacity": 0.98,
@@ -437,32 +280,40 @@ function addReportLayers(map) {
   });
 }
 
-function filterReports(reports, selectedTypes, includePending) {
+function filterReports(reports, selectedTypes, includePending, selectedStatus) {
   return {
     type: "FeatureCollection",
     features: (reports.features || []).filter((feature) => {
       const properties = feature.properties || {};
 
       return (
-        selectedTypes.includes(properties.reportType) &&
+        selectedTypes.includes(properties.reportType) && (!selectedStatus || properties.status === selectedStatus) &&
         (includePending || properties.verified)
       );
     }),
   };
 }
 
-export default function MapView() {
+export default function MapView({ reportRecords, users, onOpenReport }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const [selectedTypes, setSelectedTypes] = useState(
     REPORT_TYPES.map((type) => type.id),
   );
   const [includePending, setIncludePending] = useState(false);
-  const [reports, setReports] = useState(() =>
-    normalizeGeoJSON(mockReportPoints),
-  );
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const reports = useMemo(() => reportsToGeoJSON(reportRecords), [reportRecords]);
   const [mapError, setMapError] = useState("");
-  const [selectedReport, setSelectedReport] = useState(null);
+  const [selectedReportId, setSelectedReportId] = useState(null);
+  const selectedFeature = reports.features.find((feature) => feature.id === selectedReportId
+    && selectedTypes.includes(feature.properties.reportType) && (!selectedStatus || feature.properties.status === selectedStatus)
+    && (includePending || feature.properties.verified));
+  const selectedReport = useMemo(() => selectedFeature ? {
+    ...selectedFeature.properties, coordinates: selectedFeature.geometry.coordinates,
+  } : null, [selectedFeature]);
+  useEffect(() => {
+    if (selectedReportId && !selectedFeature) setSelectedReportId(null);
+  }, [selectedReportId, selectedFeature]);
   const [mapReady, setMapReady] = useState(false);
   const [radiusKm, setRadiusKm] = useState(2.5);
   const [selectedStation, setSelectedStation] = useState(null);
@@ -484,7 +335,7 @@ export default function MapView() {
     map.on("moveend", update);
     return () => map.off("moveend", update);
   }, [mapReady, selectedReport]);
-  const searchAnchor = reportInView ? selectedReport.coordinates : undefined;
+  const searchAnchor = reportInView ? selectedReport?.coordinates : undefined;
 
     const police = usePoliceStations(
     mapRef,
@@ -584,8 +435,8 @@ export default function MapView() {
   };
 
   const visibleReports = useMemo(
-    () => filterReports(reports, selectedTypes, includePending),
-    [reports, selectedTypes, includePending],
+    () => filterReports(reports, selectedTypes, includePending, selectedStatus),
+    [reports, selectedTypes, includePending, selectedStatus],
   );
 
   const metrics = useMemo(() => {
@@ -606,37 +457,6 @@ export default function MapView() {
         ? current.filter((item) => item !== type)
         : [...current, type],
     );
-  }, []);
-
-  useEffect(() => {
-    if (!REPORTS_API_URL) return;
-
-    const controller = new AbortController();
-
-    async function loadReports() {
-      try {
-        const response = await fetch(REPORTS_API_URL, {
-          signal: controller.signal,
-          headers: { Accept: "application/json" },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Reports API returned ${response.status}`);
-        }
-
-        const data = await response.json();
-        setReports(normalizeGeoJSON(data));
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          console.error("Could not load live reports:", error);
-          // Keep mock reports available if the API request fails.
-        }
-      }
-    }
-
-    loadReports();
-
-    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -675,13 +495,18 @@ export default function MapView() {
     );
 
     map.on("load", () => {
-      applyRoadSafeBasemapStyle(map);
-      addReportLayers(map);
-      setMapReady(true);
-      setMapError("");
+      try {
+        applyRoadSafeBasemapStyle(map);
+        addReportLayers(map);
+        setMapReady(true);
+        setMapError("");
+      } catch (error) {
+        console.error("Report layer setup failed:", error);
+        setMapError("The basemap loaded, but report layers could not be created. Reload the page and check the browser console.");
+      }
     });
 
-    map.on("click", "roadsafe-clusters", (event) => {
+    map.on("click", "roadsafe-clusters", async (event) => {
       const feature = map.queryRenderedFeatures(event.point, {
         layers: ["roadsafe-clusters"],
       })[0];
@@ -689,28 +514,16 @@ export default function MapView() {
       if (!feature) return;
 
       const source = map.getSource("roadsafe-reports");
-      source.getClusterExpansionZoom(
-        feature.properties.cluster_id,
-        (error, zoom) => {
-          if (!error) {
-            map.easeTo({
-              center: feature.geometry.coordinates,
-              zoom,
-              duration: 450,
-            });
-          }
-        },
-      );
+      try {
+        const zoom = await source.getClusterExpansionZoom(feature.properties.cluster_id);
+        if (mapRef.current === map) map.easeTo({ center: feature.geometry.coordinates, zoom, duration: 450 });
+      } catch (error) { console.error("Could not expand cluster:", error); }
     });
-
     map.on("click", "roadsafe-report-points", (event) => {
       const feature = event.features?.[0];
       if (!feature) return;
 
-      setSelectedReport({
-        ...feature.properties,
-        coordinates: feature.geometry.coordinates,
-      });
+      setSelectedReportId(feature.properties.id);
     });
 
     for (const layerId of ["roadsafe-clusters", "roadsafe-report-points"]) {
@@ -1028,7 +841,7 @@ export default function MapView() {
               background: mapReady ? "#4ade80" : "#fbbf24",
             }}
           />
-          {mapReady ? "Map connected" : "Loading basemap"}
+          {mapError ? "Map setup error" : mapReady ? "Map connected" : "Loading basemap"}
           <button
             type="button"
             className="roadsafe-map-button"
@@ -1052,7 +865,7 @@ export default function MapView() {
           <div className="roadsafe-map-metric-value">{metrics.verified}</div>
         </div>
         <div className="roadsafe-map-metric">
-          <div className="roadsafe-map-metric-label">Pending</div>
+          <div className="roadsafe-map-metric-label">Unverified</div>
           <div className="roadsafe-map-metric-value">{metrics.pending}</div>
         </div>
       </section>
@@ -1062,6 +875,7 @@ export default function MapView() {
           <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
           {selectedStation && (
             <ResponderCard
+              users={users}
               station={selectedStation}
               scene={scene}
               data={responders.get(selectedStation.id)}
@@ -1077,6 +891,9 @@ export default function MapView() {
         <aside className="roadsafe-map-sidebar">
           <section className="roadsafe-map-panel">
             <h3 className="roadsafe-map-panel-title">Report filters</h3>
+            <select aria-label="Map report status" value={selectedStatus} onChange={(event) => { setSelectedStatus(event.target.value); if (event.target.value) setIncludePending(true); }} style={{ width: "100%", marginBottom: 12, background: "#202328", color: "#e5e7eb", padding: 6 }}>
+              <option value="">All statuses</option>{REPORT_STATUSES.map((status) => <option key={status}>{status}</option>)}
+            </select>
 
             {REPORT_TYPES.map((type) => (
               <label className="roadsafe-map-filter" key={type.id}>
@@ -1235,11 +1052,11 @@ export default function MapView() {
               <strong style={{ color: "#f3f4f6" }}>Selected report</strong>
 
               <div style={{ marginTop: 8, color: "#aeb4bd" }}>
-                Type: {selectedReport.reportType || "Other"}
+                Type: {REPORT_TYPES.find((type) => type.id === selectedReport.reportType)?.label}
               </div>
 
               <div style={{ marginTop: 5, color: "#aeb4bd" }}>
-                Status: {selectedReport.verified ? "Verified" : "Pending"}
+                Status: {selectedReport.status}
               </div>
 
               <div style={{ marginTop: 5, color: "#aeb4bd" }}>
@@ -1255,18 +1072,19 @@ export default function MapView() {
                 </div>
               )}
 
+              <button type="button" className="roadsafe-map-button" onClick={focusSelectedReport}>Zoom to report</button>
               <button
                 type="button"
                 className="roadsafe-map-button"
-                onClick={focusSelectedReport}
+                onClick={() => onOpenReport(selectedReport.id)}
               >
-                Zoom to report
+                View report details
               </button>
 
               <button
                 type="button"
                 className="roadsafe-map-button"
-                onClick={() => setSelectedReport(null)}
+                onClick={() => setSelectedReportId(null)}
                 style={{ marginLeft: 6 }}
               >
                 Close
