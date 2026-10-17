@@ -28,3 +28,8 @@ export function advancePersonnelRequest(current, nextStatus) {
   if (!current.request || RESPONDER_STATUSES.indexOf(nextStatus) !== RESPONDER_STATUSES.indexOf(current.status) + 1) return current
   return { ...current, status: nextStatus }
 }
+
+// Routes represent personnel still travelling to the scene. Keep arrived requests for their summary.
+export function hasPendingArrival(entry) {
+  return Boolean(entry.request && entry.station && ['Request Sent', 'Responding'].includes(entry.status))
+}

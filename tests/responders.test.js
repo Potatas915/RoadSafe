@@ -7,7 +7,7 @@ import vm from 'node:vm'
 import { transformSync } from 'esbuild'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { createPersonnelRequest, advancePersonnelRequest, DEFAULT_RESPONDER, RESPONDER_STATUSES } from '../src/data/responders.js'
+import { hasPendingArrival, createPersonnelRequest, advancePersonnelRequest, DEFAULT_RESPONDER, RESPONDER_STATUSES } from '../src/data/responders.js'
 
 const scene = { reportId: 'RA-2026-001', label: 'Collision', coordinates: [120.88, 14.85] }
 test('personnel requests validate inputs and snapshot the selected scene', () => {
@@ -70,3 +70,16 @@ test('sent request summary keeps its original scene and shows manual progress an
   for (const text of [request.id, '5 police personnel', 'Equipment needed', 'Mark Responding', 'Cancel request']) assert.ok(html.includes(text))
   assert.ok(!html.includes('Number needed'))
 })
+
+test('confirming arrival retires only the arrived route and keeps its request summary', () => {
+  const request = createPersonnelRequest(scene, { personnel: 2 });
+  const medical = { station: { ...station, responderType: 'medical' }, request, status: 'Responding' };
+  const police = { station, request: { ...request, id: 'another-request' }, status: 'Request Sent' };
+  assert.deepEqual([medical, police].filter(hasPendingArrival), [medical, police]);
+  const arrived = advancePersonnelRequest(medical, 'On Scene');
+  assert.deepEqual([arrived, police].filter(hasPendingArrival), [police]);
+  assert.equal(arrived.request, request);
+  assert.equal(hasPendingArrival(JSON.parse(JSON.stringify(arrived))), false);
+  assert.equal(hasPendingArrival(advancePersonnelRequest(arrived, 'Completed')), false);
+  assert.equal(hasPendingArrival(DEFAULT_RESPONDER), false);
+});

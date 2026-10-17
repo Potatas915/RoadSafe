@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { DEFAULT_RESPONDER, createPersonnelRequest, advancePersonnelRequest, RESPONDER_STATUSES, STATION_STATUSES } from '../data/responders.js'
+import { DEFAULT_RESPONDER, hasPendingArrival, createPersonnelRequest, advancePersonnelRequest, RESPONDER_STATUSES, STATION_STATUSES } from '../data/responders.js'
 
 // v3 personnel requests are independent of historical v1/v2 staff assignments.
 // Previous storage remains untouched; nothing is sent to a server.
@@ -53,6 +53,6 @@ export default function useResponderState(selectedStation) {
   const release = useCallback((id) => {
     setState((previous) => ({ ...previous, [id]: { ...DEFAULT_RESPONDER } }))
   }, [])
-  const activeRequests = useMemo(() => Object.values(state).filter((entry) => entry.request && entry.station), [state])
+  const activeRequests = useMemo(() => Object.values(state).filter(hasPendingArrival), [state])
   return { activeRequests, get, setStatus, setStationStatus, requestAssistance, release }
 }
