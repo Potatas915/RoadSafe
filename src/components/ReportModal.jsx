@@ -1,24 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 import { REPORT_STATUSES, REPORT_STATUS, ROLES, categoryLabel, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
 
-export default function ReportModal({ report, users, onSave, onClose }) {
+export default function ReportModal({ report, users, onSave, onClose, live = false }) {
   const [status, setStatus] = useState(report.status)
   const [assignedOfficerId, setOfficer] = useState(report.assignedOfficerId ?? '')
   const [officialRemarks, setRemarks] = useState(report.officialRemarks)
   const [rejectionReason, setReason] = useState(report.rejectionReason ?? '')
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
   const dialog = useRef(null)
   useEffect(() => {
     const previous = document.activeElement
     dialog.current.showModal()
     return () => { previous?.focus() }
   }, [])
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault()
-    try { onSave(report.id, { status, assignedOfficerId: assignedOfficerId || null, officialRemarks, rejectionReason: rejectionReason.trim() || null }) }
+    if (saving) return
+    setSaving(true); setError('')
+    try { await onSave(report.id, { status, assignedOfficerId: assignedOfficerId || null, officialRemarks, rejectionReason: rejectionReason.trim() || null }) }
     catch (failure) { setError(failure.message) }
-  }
-  const control = 'w-full bg-darkBg border border-darkBorder rounded-xl p-2.5 text-slate-200'
+    finally { setSaving(false) }
+  }  const control = 'w-full bg-darkBg border border-darkBorder rounded-xl p-2.5 text-slate-200'
   const coords = report.location.coordinates
   return (
     <dialog ref={dialog} aria-labelledby="report-title" onCancel={(event) => { event.preventDefault(); onClose() }} className="m-auto bg-darkCard text-slate-100 border border-darkBorder rounded-2xl w-full max-w-2xl max-h-[90vh] p-0 backdrop:bg-slate-950/80">
@@ -32,7 +35,7 @@ export default function ReportModal({ report, users, onSave, onClose }) {
           <dl className="grid grid-cols-2 gap-4">
             <div><dt className="text-slate-400">Incident time (Manila)</dt><dd>{formatDateTime(report.occurredAt)}</dd></div>
             <div><dt className="text-slate-400">Submitted (Manila)</dt><dd>{formatDateTime(report.submittedAt)}</dd></div>
-            <div><dt className="text-slate-400">Location</dt><dd>{report.location.address}</dd><dd className="text-orange-300">{coords ? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` : 'No GPS coordinates provided'}</dd></div>
+            <div><dt className="text-slate-400">Location</dt><dd>{report.location.address ?? 'Confirmed map location'}</dd><dd className="text-orange-300">{coords ? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` : 'No GPS coordinates provided'}</dd></div>
             <div><dt className="text-slate-400">Accident category</dt><dd>{categoryLabel(report.categoryId)}</dd></div>
             <div><dt className="text-slate-400">Reporter</dt><dd>{report.reporter.name ?? 'Not provided'}</dd><dd>{report.reporter.contact ?? 'Contact not provided'}</dd></div>
             <div><dt className="text-slate-400">Vehicles involved</dt><dd>{report.vehicles.length ? report.vehicles.map((v) => `${v.count} × ${v.type}`).join(', ') : 'Not applicable'}</dd></div>
@@ -41,7 +44,7 @@ export default function ReportModal({ report, users, onSave, onClose }) {
           </dl>
           <section><h3 className="text-slate-400 mb-1">Description</h3><p>{report.description}</p></section>
           <section><h3 className="text-slate-400 mb-2">Photo evidence / attachments</h3>
-            {!report.evidence.length ? <p>No evidence attached.</p> : <ul className="space-y-2">{report.evidence.map((file) => <li key={file.id}><a href={file.url} target="_blank" rel="noreferrer" className="text-orange-300 underline">{file.fileName}</a>{file.mimeType.startsWith('image/') && <img src={file.url} alt={file.fileName} className="mt-2 max-h-48 rounded-lg" />}</li>)}</ul>}
+            {!report.evidence.length ? <p>No evidence attached.</p> : <ul className="space-y-2">{report.evidence.map((file) => <li key={file.id}>{!file.url ? <span>Photo temporarily unavailable: {file.fileName}</span> : <a href={file.url} target="_blank" rel="noreferrer" className="text-orange-300 underline">{file.fileName}</a>}{file.url && file.mimeType.startsWith('image/') && <img src={file.url} alt={file.fileName} className="mt-2 max-h-48 rounded-lg" />}</li>)}</ul>}
           </section>
           <div className="space-y-3 border-t border-darkBorder pt-4">
             <label className="block">Report status<select aria-label="Report status" className={control} value={status} onChange={(e) => setStatus(e.target.value)}>{REPORT_STATUSES.map((value) => <option key={value}>{value}</option>)}</select></label>
@@ -49,11 +52,13 @@ export default function ReportModal({ report, users, onSave, onClose }) {
             <label className="block">Official remarks<textarea className={control} value={officialRemarks} onChange={(e) => setRemarks(e.target.value)} /></label>
             {status === REPORT_STATUS.REJECTED && <label className="block">Rejection reason (required)<textarea required className={control} value={rejectionReason} onChange={(e) => setReason(e.target.value)} /></label>}
           </div>
-          <p className="text-amber-300">Session preview only. Saving does not dispatch responders or update a server. Selecting a verified workflow status records demo verification.</p>
+          <p className="text-amber-300">{live ? "Changes are saved to the shared backend with your account and timestamp. Assignments are recorded; external dispatch messages are not sent." : "Session preview only. Saving does not dispatch responders or update a server. Selecting a verified workflow status records demo verification."}</p>
+          {report.events?.length > 0 && <section><h3 className="text-slate-400 mb-2">Report history and clarification</h3><ul className="space-y-2">{report.events.map((event) => <li key={event.id}><span className="text-orange-300">{event.status ?? event.type}</span> · {formatDateTime(event.createdAt)}{event.message && <p>{event.message}</p>}</li>)}</ul></section>}
           {error && <p role="alert" className="text-red-300">{error}</p>}
         </div>
-        <footer className="p-4 border-t border-darkBorder flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 rounded-xl">Cancel</button><button type="submit" className="px-4 py-2 bg-orange-600 rounded-xl">Save session changes</button></footer>
+        <footer className="p-4 border-t border-darkBorder flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 rounded-xl">Cancel</button><button type="submit" disabled={saving} className="px-4 py-2 bg-orange-600 rounded-xl disabled:opacity-50">{saving ? "Saving…" : live ? "Save changes" : "Save session changes"}</button></footer>
       </form>
     </dialog>
   )
 }
+

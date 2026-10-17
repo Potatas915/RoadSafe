@@ -6,7 +6,7 @@ export default function ReportsView({ reports, users, onOpenReport }) {
   const [category, setCategory] = useState('')
   const [query, setQuery] = useState('')
   const visible = reports.filter((r) => (!status || r.status === status) && (!category || r.categoryId === category)
-    && `${r.id} ${r.location.address}`.toLowerCase().includes(query.toLowerCase()))
+    && `${r.id} ${r.location.address ?? 'Confirmed map location'}`.toLowerCase().includes(query.toLowerCase()))
   const control = 'bg-darkBg border border-darkBorder text-xs rounded-xl px-3 py-2 text-slate-300'
   return (
     <main className="flex-1 p-6 overflow-y-auto space-y-6">
@@ -30,7 +30,7 @@ export default function ReportsView({ reports, users, onOpenReport }) {
             <tbody className="divide-y divide-darkBorder text-slate-300">
               {visible.map((r) => <tr key={r.id} className="hover:bg-slate-800/40">
                 <td className="p-4 font-mono text-white">{r.id}</td>
-                <td className="p-4">{formatDateTime(r.occurredAt)}</td><td className="p-4">{r.location.address}</td>
+                <td className="p-4">{formatDateTime(r.occurredAt)}</td><td className="p-4">{r.location.address ?? 'Confirmed map location'}</td>
                 <td className="p-4">{categoryLabel(r.categoryId)}</td>
                 <td className="p-4">{r.status}<span className={`block mt-1 ${isOfficiallyVerified(r) ? 'text-emerald-400' : 'text-amber-300'}`}>{isOfficiallyVerified(r) ? 'Officially verified' : 'Public submission — unverified'}</span></td>
                 <td className="p-4">{officerName(users, r.assignedOfficerId)}</td>
@@ -44,3 +44,4 @@ export default function ReportsView({ reports, users, onOpenReport }) {
     </main>
   )
 }
+

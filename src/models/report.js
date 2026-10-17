@@ -58,7 +58,7 @@ export function validateReport(report) {
   if (!report || typeof report !== 'object') return ['Report must be an object.']
   if (!text(report.id)) errors.push('Report ID is required.')
   if (!isoDate(report.occurredAt) || !isoDate(report.submittedAt)) errors.push('Incident and submission timestamps must include a timezone.')
-  if (!text(report.location?.address)) errors.push('Accident location is required.')
+  if (!nullableText(report.location?.address) || (!report.location?.address && !validCoordinates(report.location?.coordinates))) errors.push('An address or valid confirmed coordinates are required.')
   if (report.location?.coordinates !== null && !validCoordinates(report.location?.coordinates)) errors.push('Coordinates must be numbers in range or null.')
   if (!ACCIDENT_CATEGORIES.some((c) => c.id === report.categoryId)) errors.push('Unknown accident category.')
   if (!text(report.description)) errors.push('Description is required.')
@@ -70,9 +70,9 @@ export function validateReport(report) {
   if (!injury || !INJURY_STATUSES.includes(injury.status) || !['injuredCount', 'fatalityCount'].every((key) => injury[key] === null || count(injury[key]))) errors.push('Invalid injury information.')
   else if (injury.status === 'unknown' && (injury.injuredCount !== null || injury.fatalityCount !== null)
     || injury.status === 'none' && (injury.injuredCount !== 0 || injury.fatalityCount !== 0)
-    || injury.status === 'injured' && (!count(injury.injuredCount) || injury.injuredCount < 1 || injury.fatalityCount !== 0)
-    || injury.status === 'fatal' && (!count(injury.fatalityCount) || injury.fatalityCount < 1)) errors.push('Injury counts do not match injury status.')
-  if (!Array.isArray(report.evidence) || report.evidence.some((e) => !e || !text(e.id) || !text(e.fileName) || !text(e.mimeType) || !text(e.url) || !/^(https?:\/\/|\/(?!\/))/.test(e.url))) errors.push('Evidence needs an ID, filename, MIME type and safe URL.')
+    || injury.status === 'injured' && (injury.injuredCount !== null && (!count(injury.injuredCount) || injury.injuredCount < 1) || injury.fatalityCount !== 0)
+    || injury.status === 'fatal' && (injury.fatalityCount !== null && (!count(injury.fatalityCount) || injury.fatalityCount < 1))) errors.push('Injury counts do not match injury status.')
+  if (!Array.isArray(report.evidence) || report.evidence.some((e) => !e || !text(e.id) || !text(e.fileName) || !text(e.mimeType) || !(e.url === null && text(e.storagePath) || text(e.url) && /^(https?:\/\/|\/(?!\/))/.test(e.url)))) errors.push('Evidence needs an ID, filename, MIME type and safe URL.')
   if (!nullableText(report.assignedOfficerId)) errors.push('Invalid assigned officer.')
   if (typeof report.officialRemarks !== 'string') errors.push('Official remarks must be a string.')
   const verification = report.verification
@@ -131,3 +131,4 @@ export function updateReport(report, patch, actorId, now = new Date().toISOStrin
   if (errors.length) throw new Error(errors.join(' '))
   return next
 }
+
