@@ -23,6 +23,7 @@ import useMedicalStations from "../hooks/useMedicalStations.js";
 import useRadiusArea from "../hooks/useRadiusArea.js";
 
 import useResponderState from "../hooks/useResponderState.js";
+import { previewRoute, fetchRoute, drawRoute, focusRoute } from "../services/routing.js";
 import ResponderCard from "./ResponderCard.jsx";
 import MapReportCard from "./MapReportCard.jsx";
 import { luzonReportsResponse, LUZON_SAMPLE_BOUNDS } from "../data/luzonReports.js";
@@ -323,6 +324,35 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const [radiusKm, setRadiusKm] = useState(2.5);
   const [selectedStation, setSelectedStation] = useState(null);
   const responders = useResponderState();
+  const [routeInfo, setRouteInfo] = useState(null);
+  const stationRequest = selectedStation ? responders.get(selectedStation.id).request : null;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (!selectedStation || !stationRequest) {
+      setRouteInfo(null);
+      drawRoute(map, null);
+      return;
+    }
+    const controller = new AbortController();
+    const from = [selectedStation.lng, selectedStation.lat];
+    const to = stationRequest.sceneCoordinates;
+    const preview = previewRoute(from, to);
+    setRouteInfo(preview);
+    drawRoute(map, preview, selectedStation.responderType);
+    fetchRoute(from, to, { signal: controller.signal }).then((route) => {
+      if (controller.signal.aborted || mapRef.current !== map) return;
+      setRouteInfo(route);
+      drawRoute(map, route, selectedStation.responderType);
+    });
+    return () => controller.abort();
+  }, [mapReady, selectedStation, stationRequest]);
+  useEffect(() => {
+    if (!routeInfo) return;
+    // Measure the card after React commits its active-route layout.
+    const frame = requestAnimationFrame(() => focusRoute(mapRef.current, routeInfo));
+    return () => cancelAnimationFrame(frame);
+  }, [routeInfo]);
   const focusIncident = useCallback((coordinates) => {
     const map = mapRef.current;
     if (!map) return;
@@ -463,6 +493,8 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+    // A recreated map (including Vite refresh) needs its sources populated again.
+    setMapReady(false);
 
     const map = new MapLibreMap({
       container: containerRef.current,
@@ -922,6 +954,8 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             <ResponderCard
               key={selectedStation.id}
               station={selectedStation}
+              routeInfo={routeInfo}
+              onFocusRoute={() => focusRoute(mapRef.current, routeInfo)}
               scene={scene}
               data={responders.get(selectedStation.id)}
               onStatus={(value) => responders.setStatus(selectedStation.id, value)}

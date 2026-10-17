@@ -48,11 +48,14 @@ export default function ResponderCard({
   onStatus,
   onStationStatus,
   onRequest,
+  routeInfo,
+  onFocusRoute,
   onRelease,
   onClose,
 }) {
   const [personnel, setPersonnel] = useState(1)
   const [note, setNote] = useState('')
+  const [showDetails, setShowDetails] = useState(false)
   if (!station) return null
 
   const ui = TYPE_UI[station.responderType] || TYPE_UI.police
@@ -69,7 +72,7 @@ export default function ResponderCard({
       ? Math.max(1, Math.round((distance / AVG_SPEED_KMH) * 60))
       : null
   return (
-    <div className="absolute left-3 bottom-3 z-10 w-[320px] max-w-[calc(100%-24px)] max-h-[calc(100%-24px)] overflow-y-auto bg-darkCard border border-darkBorder rounded-2xl shadow-2xl">
+    <div data-responder-card className="absolute left-3 bottom-3 z-10 w-[320px] max-w-[calc(100%-24px)] max-h-[calc(100%-24px)] overflow-y-auto bg-darkCard border border-darkBorder rounded-2xl shadow-2xl">
       <div className="p-4 border-b border-darkBorder flex items-start gap-3 bg-slate-900/50 rounded-t-2xl">
         <span
           className={`w-9 h-9 shrink-0 rounded-xl border flex items-center justify-center ${ui.badge}`}
@@ -94,7 +97,7 @@ export default function ResponderCard({
         </button>
       </div>
 
-      <div className="p-4 space-y-4 text-xs">
+      <div className={`p-4 space-y-4 text-xs ${request && routeInfo && !showDetails ? 'hidden md:block' : ''}`}>
         <div className="bg-darkBg p-3 rounded-xl border border-darkBorder space-y-1">
           <span className={label}>Location & Coordinates</span>
           <p className="font-medium text-white">
@@ -162,6 +165,11 @@ export default function ResponderCard({
       </div>
 
       <div className="p-3 border-t border-darkBorder bg-slate-900/50 rounded-b-2xl space-y-2">
+        {request && routeInfo && <div className="text-xs text-slate-300 space-y-2">
+          <p>{routeInfo.isFallback ? 'Direct-line preview · road route unavailable or loading' : 'Driving route displayed · OSRM'}</p>
+          <button type="button" onClick={onFocusRoute} className="w-full px-4 py-2 bg-blue-600 text-white rounded-xl">View route</button>
+          <button type="button" aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)} className="md:hidden text-slate-300 underline">{showDetails ? 'Hide request details' : 'Show request details'}</button>
+        </div>}
         {request ? <>
           {nextStatus && <button type="button" onClick={() => onStatus(nextStatus)} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs transition">Mark {nextStatus}</button>}
           <button type="button" onClick={onRelease} className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold text-xs transition">{data.status === 'Completed' ? 'New request' : 'Cancel request'}</button>
