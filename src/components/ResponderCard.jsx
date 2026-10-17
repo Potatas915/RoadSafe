@@ -1,23 +1,22 @@
+import { useState } from 'react'
 import {
   RESPONDER_STATUSES,
+  STATION_STATUSES,
   STATUS_TONE,
-  getAssignees,
 } from '../data/responders.js'
 
 const AVG_SPEED_KMH = 35 // rough urban speed, used for the ETA estimate
 
 const TYPE_UI = {
   police: {
-    label: 'Police station',
+    label: 'Police Station',
     icon: 'fa-shield-halved',
     badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    assignLabel: 'Assign officer',
   },
   medical: {
     label: 'Medical facility',
     icon: 'fa-truck-medical',
     badge: 'bg-red-500/10 text-red-400 border-red-500/20',
-    assignLabel: 'Assign medic',
   },
 }
 
@@ -40,33 +39,35 @@ const select =
  *
  * station: { id, name, address, kind, responderType: 'police' | 'medical', lng, lat }
  * scene:   { reportId, label, coordinates: [lng, lat] } | null   (the selected report)
- * data:    { assignee, status, request }
+ * data:    { status, request } — browser-local personnel request
  */
 export default function ResponderCard({
   station,
-  users,
   scene,
   data,
-  onAssign,
   onStatus,
+  onStationStatus,
   onRequest,
   onRelease,
   onClose,
 }) {
+  const [personnel, setPersonnel] = useState(1)
+  const [note, setNote] = useState('')
   if (!station) return null
 
   const ui = TYPE_UI[station.responderType] || TYPE_UI.police
-  const assignees = getAssignees(station.responderType, users)
-  const hasScene = Boolean(scene?.coordinates)
+  const request = data.request
+  const activeScene = request ? { reportId: request.reportId, label: request.sceneLabel, coordinates: request.sceneCoordinates } : scene
+  const hasScene = Boolean(activeScene?.coordinates)
+  const nextStatus = request ? RESPONDER_STATUSES[RESPONDER_STATUSES.indexOf(data.status) + 1] : null
+  const typeName = station.responderType === 'police' ? 'Police Station' : ({ hospital: 'Hospital', clinic: 'Clinic', 'ambulance station': 'Ambulance Station' }[station.kind?.toLowerCase()] || ui.label)
   const distance = hasScene
-    ? distanceKm([station.lng, station.lat], scene.coordinates)
+    ? distanceKm([station.lng, station.lat], activeScene.coordinates)
     : null
   const eta =
     distance != null
       ? Math.max(1, Math.round((distance / AVG_SPEED_KMH) * 60))
       : null
-  const request = data.request
-
   return (
     <div className="absolute left-3 bottom-3 z-10 w-[320px] max-w-[calc(100%-24px)] max-h-[calc(100%-24px)] overflow-y-auto bg-darkCard border border-darkBorder rounded-2xl shadow-2xl">
       <div className="p-4 border-b border-darkBorder flex items-start gap-3 bg-slate-900/50 rounded-t-2xl">
@@ -77,11 +78,11 @@ export default function ResponderCard({
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="font-bold text-sm text-white truncate">{station.name}</h3>
-          <p className="text-[11px] text-slate-400">{station.kind || ui.label}</p>
+          <p className="text-[11px] text-slate-400">{typeName}</p>
           <span
             className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_TONE[data.status]}`}
           >
-            {data.status}
+            {request ? data.status : (data.stationStatus ?? 'Available')}
           </span>
         </div>
         <button
@@ -97,7 +98,7 @@ export default function ResponderCard({
         <div className="bg-darkBg p-3 rounded-xl border border-darkBorder space-y-1">
           <span className={label}>Location & Coordinates</span>
           <p className="font-medium text-white">
-            {station.address || 'Address not listed'}
+            {station.address || 'Address not available'}
           </p>
           <p className="font-mono text-orange-400 text-[11px]">
             {station.lat.toFixed(4)}° N, {station.lng.toFixed(4)}° E
@@ -113,7 +114,7 @@ export default function ResponderCard({
                 <p className="text-slate-400 text-[11px]">ETA ~{eta} min</p>
               </>
             ) : (
-              <p className="text-slate-500">—</p>
+              <p className="text-slate-500 text-[11px]">Select a report to estimate distance.</p>
             )}
           </div>
           <div className="bg-darkBg p-3 rounded-xl border border-darkBorder space-y-1">
@@ -121,83 +122,52 @@ export default function ResponderCard({
             {hasScene ? (
               <>
                 <p className="font-mono text-orange-400 font-bold text-[11px]">
-                  {scene.reportId}
+                  {activeScene.reportId}
                 </p>
-                <p className="text-slate-400 text-[11px]">{scene.label}</p>
+                <p className="text-slate-400 text-[11px]">{activeScene.label}</p>
               </>
             ) : (
-              <p className="text-slate-500">No report selected</p>
+              <p className="text-slate-500">Select a report on the map.</p>
             )}
           </div>
         </div>
 
         <div className="space-y-2 pt-2 border-t border-darkBorder">
-          <span className={label}>Officer Assignment & Status Management</span>
-          <select
-            aria-label={ui.assignLabel}
-            value={data.assignee}
-            onChange={(e) => onAssign(e.target.value)}
-            className={select}
-          >
-            <option value="">{ui.assignLabel}: Unassigned</option>
-            {assignees.map((a) => (
-              <option key={a.id} value={a.id}>
-                {ui.assignLabel}: {a.name} ({a.code})
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Responder status"
-            value={data.status}
-            onChange={(e) => onStatus(e.target.value)}
-            className={select}
-          >
-            {RESPONDER_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                Status: {s}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {request && (
-          <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 space-y-1">
-            <span className="text-orange-400 block text-[10px] uppercase font-semibold">
-              Assistance requested
-            </span>
-            <p className="text-slate-200">
-              <span className="font-mono font-bold text-orange-400">{request.id}</span>{' '}
-              to {request.reportId}
-            </p>
-            <p className="text-slate-400 text-[11px]">
-              {data.assignee || 'Unit not assigned'} ·{' '}
-              {new Date(request.requestedAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </p>
+          <div className="flex items-center justify-between gap-2">
+            <span className={label}>Request Personnel</span>
+            <span className="text-[10px] text-slate-500" title="Browser-only request; no dispatch is sent.">Browser only</span>
           </div>
-        )}
+          {!request ? <>
+            <select aria-label="Number needed" value={personnel} onChange={(event) => setPersonnel(Number(event.target.value))} className={select}>
+              {[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{station.responderType === 'police' ? 'Police' : 'Medical'} personnel needed: {count}</option>)}
+            </select>
+            <select aria-label="Responder status" value={data.stationStatus ?? 'Available'} onChange={(event) => onStationStatus(event.target.value)} className={select}>
+              {STATION_STATUSES.map((value) => <option key={value} value={value}>Status: {value}</option>)}
+            </select>
+            <details className="text-[11px] text-slate-400">
+              <summary className="cursor-pointer">Note (optional){note && ' · added'}</summary>
+              <textarea aria-label="Note (optional)" value={note} maxLength={500} rows={2} onChange={(event) => setNote(event.target.value)} placeholder="Additional personnel needs…" className={`${select} mt-2 resize-y`} />
+            </details>
+          </> : <div role="status" className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 space-y-2 break-words">
+            <span className="text-orange-400 block text-[10px] uppercase font-semibold">Personnel request</span>
+            <p className="font-mono font-bold text-orange-400">{request.id}</p>
+            <p>{request.personnel} {station.responderType === 'police' ? 'police' : 'medical'} personnel</p>
+            <p className="text-slate-400 text-[11px]">{new Date(request.requestedAt).toLocaleString()}</p>
+            {request.note && <p className="text-slate-300 whitespace-pre-wrap">{request.note}</p>}
+            <ol aria-label="Request progress" className="flex flex-wrap gap-x-2 gap-y-1 text-[10px]">
+              {RESPONDER_STATUSES.map((status, index) => <li key={status} aria-current={data.status === status ? 'step' : undefined} className={index <= RESPONDER_STATUSES.indexOf(data.status) ? 'text-orange-400' : 'text-slate-500'}>{index > 0 && <span aria-hidden="true">› </span>}{status}</li>)}
+            </ol>
+          </div>}
+        </div>
       </div>
 
       <div className="p-3 border-t border-darkBorder bg-slate-900/50 rounded-b-2xl space-y-2">
-        {request ? (
-          <button
-            onClick={onRelease}
-            className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold text-xs transition"
-          >
-            {data.status === 'Assistance Requested' ? 'Cancel request' : 'Stand down'}
-          </button>
-        ) : (
-          <button
-            onClick={onRequest}
-            disabled={!hasScene}
-            className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs shadow transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-600"
-          >
-            <i className="fa-solid fa-bullhorn mr-2"></i>
-            Request assistance to scene
-          </button>
-        )}
+        {request ? <>
+          {nextStatus && <button type="button" onClick={() => onStatus(nextStatus)} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs transition">Mark {nextStatus}</button>}
+          <button type="button" onClick={onRelease} className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold text-xs transition">{data.status === 'Completed' ? 'New request' : 'Cancel request'}</button>
+        </> : <button type="button" onClick={() => onRequest({ personnel, note })} disabled={!hasScene} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs shadow transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-600">
+          <i className="fa-solid fa-bullhorn mr-2" />Request {station.responderType === 'police' ? 'police' : 'medical'} personnel
+        </button>}
         {!request && !hasScene && (
           <p className="text-[11px] text-slate-500 text-center">
             Click a report on the map to choose the scene first.

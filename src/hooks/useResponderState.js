@@ -1,66 +1,48 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from 'react'
+import { DEFAULT_RESPONDER, createPersonnelRequest, advancePersonnelRequest, RESPONDER_STATUSES, STATION_STATUSES } from '../data/responders.js'
 
-// Assignment + status for each police station / medical facility, keyed by
-// station id. Saved in this browser's localStorage (no backend yet).
-
-// v2 uses stable included-user IDs; old name-based demo state remains untouched in v1.
-const STORAGE_KEY = "roadsafe:responders:v2";
-const DEFAULT = { assignee: "", status: "Available", request: null };
-
+// v3 personnel requests are independent of historical v1/v2 staff assignments.
+// Previous storage remains untouched; nothing is sent to a server.
+const STORAGE_KEY = 'roadsafe:responders:v3'
 function read() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-  } catch {
-    return {};
-  }
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY))
+    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {}
+    return Object.fromEntries(Object.entries(stored).filter(([, value]) => value && (
+      (value.status === DEFAULT_RESPONDER.status && value.request === null) ||
+      (RESPONDER_STATUSES.includes(value.status) && value.request?.id && value.request?.requestedAt &&
+        Number.isInteger(value.request.personnel) && value.request.personnel >= 1 && value.request.personnel <= 5 &&
+        Array.isArray(value.request.sceneCoordinates) && value.request.sceneCoordinates.length === 2 && value.request.sceneCoordinates.every(Number.isFinite))
+    )))
+  } catch { return {} }
 }
 
 export default function useResponderState() {
-  const [state, setState] = useState(read);
-
+  const [state, setState] = useState(read)
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      /* storage unavailable - state still works in memory */
-    }
-  }, [state]);
-
-  const get = useCallback((id) => ({ ...DEFAULT, ...state[id] }), [state]);
-
-  const update = useCallback((id, patch) => {
-    setState((prev) => ({ ...prev, [id]: { ...DEFAULT, ...prev[id], ...patch } }));
-  }, []);
-
-  const setAssignee = useCallback(
-    (id, assignee) => update(id, { assignee }),
-    [update]
-  );
-
-  const setStatus = useCallback(
-    (id, status) =>
-      update(id, status === "Available" ? { status, request: null } : { status }),
-    [update]
-  );
-
-  const requestAssistance = useCallback(
-    (id, scene) =>
-      update(id, {
-        status: "Assistance Requested",
-        request: {
-          id: `REQ-${Date.now().toString(36).slice(-5).toUpperCase()}`,
-          reportId: scene.reportId,
-          sceneLabel: scene.label,
-          requestedAt: new Date().toISOString(),
-        },
-      }),
-    [update]
-  );
-
-  const release = useCallback(
-    (id) => update(id, { status: "Available", request: null }),
-    [update]
-  );
-
-  return { get, setAssignee, setStatus, requestAssistance, release };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)) }
+    catch { /* Requests remain usable in memory if storage is unavailable. */ }
+  }, [state])
+  const get = useCallback((id) => state[id] ?? DEFAULT_RESPONDER, [state])
+  const setStationStatus = useCallback((id, stationStatus) => {
+    if (!STATION_STATUSES.includes(stationStatus)) return
+    setState((previous) => ({ ...previous, [id]: { ...DEFAULT_RESPONDER, ...previous[id], stationStatus } }))
+  }, [])
+  const setStatus = useCallback((id, status) => {
+    setState((previous) => {
+      const current = previous[id] ?? DEFAULT_RESPONDER
+      return { ...previous, [id]: advancePersonnelRequest(current, status) }
+    })
+  }, [])
+  const requestAssistance = useCallback((id, scene, details) => {
+    const request = createPersonnelRequest(scene, details)
+    if (!request) return
+    setState((previous) => previous[id]?.request ? previous : {
+      ...previous, [id]: { ...DEFAULT_RESPONDER, ...previous[id], status: 'Request Sent', request },
+    })
+  }, [])
+  const release = useCallback((id) => {
+    setState((previous) => ({ ...previous, [id]: { ...DEFAULT_RESPONDER } }))
+  }, [])
+  return { get, setStatus, setStationStatus, requestAssistance, release }
 }

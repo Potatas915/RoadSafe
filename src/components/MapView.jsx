@@ -895,13 +895,13 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
           <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
           {selectedStation && (
             <ResponderCard
-              users={users}
+              key={selectedStation.id}
               station={selectedStation}
               scene={scene}
               data={responders.get(selectedStation.id)}
-              onAssign={(value) => responders.setAssignee(selectedStation.id, value)}
               onStatus={(value) => responders.setStatus(selectedStation.id, value)}
-              onRequest={() => scene && responders.requestAssistance(selectedStation.id, scene)}
+              onStationStatus={(value) => responders.setStationStatus(selectedStation.id, value)}
+              onRequest={(details) => scene && responders.requestAssistance(selectedStation.id, scene, details)}
               onRelease={() => responders.release(selectedStation.id)}
               onClose={() => setSelectedStation(null)}
             />
