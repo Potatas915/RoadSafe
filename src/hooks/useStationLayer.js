@@ -129,8 +129,7 @@ async function ensureLayers(map, ids, config) {
  *   id: string,                 unique key, e.g. "police"
  *   color: string,              colour of the search circle
  *   badgeSvg: string,           64x64 SVG used as the map icon
- *   loadStations: () => Promise<Station[]>,
- *   preloadDelayMs?: number     delay before background preloading
+ *   loadStations: ({ center, radiusKm, signal }) => Promise<Station[]>,
  * }  (must be a stable object, defined outside the component)
  * @param mapRef         ref to the MapLibre map
  * @param mapReady       true once the map style has loaded
@@ -143,7 +142,8 @@ export default function useStationLayer(
   mapReady,
   centerOverride,
   radiusKm,
-  onSelect
+  onSelect,
+  nationwide = false
 ) {
   const onSelectRef = useRef(onSelect);
   useEffect(() => {
@@ -225,24 +225,13 @@ export default function useStationLayer(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, mapRef, config]);
 
-  // Download + cache in the background as soon as the map view opens.
-  // Nothing is drawn on the map until the Deploy button is pressed.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      config.loadStations().catch((err) => {
-        console.warn(`${config.id} preload failed (will retry on deploy):`, err);
-      });
-    }, config.preloadDelayMs || 0);
-
-    return () => clearTimeout(timer);
-  }, [config]);
-
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const hide = useCallback(() => {
     abortRef.current?.abort();
     setLoading(false);
     setDeployed(false);
+    setError("");
   }, []);
 
   const deploy = useCallback(
@@ -257,20 +246,29 @@ export default function useStationLayer(
       const controller = new AbortController();
       abortRef.current = controller;
 
+      setDeployed(true);
+      setStations([]);
+      setArea(null);
       setLoading(true);
       setError("");
 
       try {
-        // Instant when the background preload has finished; otherwise waits for it.
-        const all = await config.loadStations();
+        // Reuse the national inventory and filter the deployment radius locally.
+        const all = await config.loadStations({ center, radiusKm: radius, signal: controller.signal, nationwide: true });
         if (controller.signal.aborted) return;
 
-        const results = filterByRadius(all, center, radius);
+        const results = nationwide ? all : filterByRadius(all, center, radius);
 
         setStations(results);
-        setArea({ center, radiusKm: radius });
+        setArea(nationwide ? null : { center, radiusKm: radius });
+        if (all.warning) setError(all.warning);
         setDeployed(true);
 
+        if (nationwide) {
+          map.fitBounds([[116.8, 4.5], [127, 21.3]], { padding: 40, duration: 600 });
+          if (!results.length) setError("No mapped stations were returned for the Philippines.");
+          return;
+        }
         const ring = circleCoordinates(center, radius);
         const lngs = ring.map((p) => p[0]);
         const lats = ring.map((p) => p[1]);
@@ -289,12 +287,13 @@ export default function useStationLayer(
         if (err.name !== "AbortError") {
           console.error(`${config.id} lookup failed:`, err);
           setError(err.message || "Could not load stations.");
+          setDeployed(false);
         }
       } finally {
         if (abortRef.current === controller) setLoading(false);
       }
     },
-    [mapRef, config]
+    [mapRef, config, nationwide]
   );
 
   // Re-run the search when the radius changes while deployed.

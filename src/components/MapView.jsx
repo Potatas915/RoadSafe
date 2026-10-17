@@ -336,23 +336,8 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     });
   }, []);
 
-    // Use the selected report as the search center only while it is visible on the
-  // map. If you pan somewhere else, deploying uses the map center instead.
-  const [reportInView, setReportInView] = useState(false);
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-
-    const update = () => {
-      const coords = selectedReport?.coordinates;
-      setReportInView(Boolean(coords) && map.getBounds().contains(coords));
-    };
-
-    update();
-    map.on("moveend", update);
-    return () => map.off("moveend", update);
-  }, [mapReady, selectedReport]);
-  const searchAnchor = reportInView ? selectedReport?.coordinates : undefined;
+  // Keep deployment anchored to the selected accident, even after panning.
+  const searchAnchor = selectedReport?.coordinates;
 
     const police = usePoliceStations(
     mapRef,
@@ -1007,18 +992,16 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             </label>
 
             <div style={{ marginBottom: 9, color: "#858c96", fontSize: 11 }}>
-              Around:{" "}
-              {police.usingSelectedReport ? "selected report" : "map center"}
+              {`Around: ${police.usingSelectedReport ? 'selected report' : 'map center'}`}
             </div>
 
             <button
               type="button"
               className="roadsafe-map-button"
               onClick={handleDeploy}
-              disabled={anyLoading}
             >
               {anyLoading
-                ? "Loading..."
+                ? "Cancel loading"
                 : anyDeployed
                   ? "Hide personnel"
                   : radius.active
@@ -1056,15 +1039,14 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             {police.deployed && police.stations.length > 0 && (
               <div style={{ marginTop: 9, color: "#aeb4bd", fontSize: 12 }}>
                 {police.stations.length} police station
-                {police.stations.length === 1 ? "" : "s"} within {radiusKm} km
+                {police.stations.length === 1 ? "" : "s"}{` within ${radiusKm} km`}
               </div>
             )}
 
             {medical.deployed && medical.stations.length > 0 && (
               <div style={{ marginTop: 6, color: "#aeb4bd", fontSize: 12 }}>
                 {medical.stations.length} medical facilit
-                {medical.stations.length === 1 ? "y" : "ies"} within {radiusKm}{" "}
-                km
+                {medical.stations.length === 1 ? "y" : "ies"}{` within ${radiusKm} km`}
               </div>
             )}
 
