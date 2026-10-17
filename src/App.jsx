@@ -22,6 +22,7 @@ export default function App() {
 function ManagerDashboard({ signedInUser }) {
   const live = Boolean(signedInUser)
   const [view, setView] = useState('map-view')
+  const [searchLocation, setSearchLocation] = useState(null)
   const [activeReport, setActiveReport] = useState(null)
   const [response, setResponse] = useState(live ? { meta: { schemaVersion: 1 }, data: [], included: { users: [] } } : reportsResponse)
   const [source, setSource] = useState(live ? 'Loading shared reports…' : 'Demo data — changes last for this session')
@@ -80,15 +81,12 @@ function ManagerDashboard({ signedInUser }) {
     setActiveReport(null)
   }
   return (
-    <div className="bg-darkBg text-slate-100 font-sans antialiased h-screen flex overflow-hidden">
+    <div data-tactical={view === 'map-view'} className="roadsafe-shell bg-darkBg text-slate-100 font-sans antialiased h-screen flex overflow-hidden">
       <Sidebar view={view} onChange={setView} pendingCount={reportSummary(reports).pending} currentUser={currentUser} />
       <div className="flex-1 flex flex-col relative overflow-hidden bg-darkBg min-w-0">
-        <TopBar live={live} pendingCount={reportSummary(reports).pending} onOpenReports={() => setView('reports-view')} />
-        <div className="px-6 py-2 text-xs text-amber-300 border-b border-darkBorder flex justify-between gap-4">
-          <p role="status">{source}</p>
-          {live && <button onClick={() => backend.auth.signOut()} className="shrink-0 text-slate-300 underline">Sign out</button>}
-        </div>
-        {view === 'map-view' && <MapView reportRecords={reports} users={users} onOpenReport={setActiveReport} />}
+        <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={live ? () => backend.auth.signOut() : undefined} live={live} pendingCount={reportSummary(reports).pending} onOpenReports={() => setView('reports-view')} />
+        <p className="sr-only" role="status">{source}</p>
+        {view === 'map-view' && <MapView searchLocation={searchLocation} reportRecords={reports} users={users} onOpenReport={setActiveReport} />}
         {view === 'dashboard-view' && <DashboardView reports={reports} />}
         {view === 'reports-view' && <ReportsView reports={reports} users={users} onOpenReport={setActiveReport} />}
         {view === 'officers-view' && <OfficersView reports={reports} users={users} onOpenReport={setActiveReport} />}

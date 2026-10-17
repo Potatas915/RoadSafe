@@ -1,3 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.roadsafe-shell[data-tactical="true"] > aside { flex-shrink: 0; }
+.roadsafe-shell[data-tactical="true"] .roadsafe-topbar { gap: 16px; }
+.roadsafe-shell[data-tactical="true"] .roadsafe-topbar > div { min-width: 0; }
+.roadsafe-location-search { position: relative; width: clamp(180px, 24vw, 360px); }
+.roadsafe-location-search form:focus-within { border-color: #f97316; }
+.roadsafe-search-results { position: absolute; top: calc(100% + 8px); right: 0; width: min(380px, 80vw); padding: 12px; background: #1b1e22; border: 1px solid #393e45; border-radius: 9px; box-shadow: 0 12px 32px #0008; font-size: 12px; color: #c5cad1; max-height: 50vh; overflow-y: auto; }
+.roadsafe-search-result { display: block; text-align: left; width: 100%; padding: 10px 8px; margin: 4px 0; border-radius: 5px; overflow-wrap: anywhere; }
+.roadsafe-search-result:hover, .roadsafe-search-result:focus-visible { background: #30343a; color: white; }
+.roadsafe-map-details button { margin: 8px 6px 0 0; }
+@media (max-width: 1200px) {
+  .roadsafe-shell[data-tactical="true"] .roadsafe-topbar > div:first-child { flex-wrap: wrap; gap: 6px; }
+}
+@media (max-width: 760px) {
+  .roadsafe-shell[data-tactical="true"] { flex-direction: column; height: 100dvh; }
+  .roadsafe-shell[data-tactical="true"] > aside { width: 100%; }
+  .roadsafe-shell[data-tactical="true"] > aside > div:first-child > div,
+  .roadsafe-shell[data-tactical="true"] > aside > div:last-child { display: none; }
+  .roadsafe-shell[data-tactical="true"] > aside nav { display: flex; overflow-x: auto; padding: 8px; gap: 4px; }
+  .roadsafe-shell[data-tactical="true"] > aside nav button { white-space: nowrap; width: auto; flex-shrink: 0; font-size: 12px; }
+  .roadsafe-shell[data-tactical="true"] > div { min-height: 0; }
+  .roadsafe-shell[data-tactical="true"] .roadsafe-topbar { height: auto; padding: 12px 16px; flex-wrap: wrap; gap: 10px; }
+  .roadsafe-shell[data-tactical="true"] .roadsafe-topbar > div:last-child { width: 100%; gap: 12px; }
+  .roadsafe-location-search { width: auto; flex: 1; }
+}

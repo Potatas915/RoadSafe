@@ -294,7 +294,7 @@ function filterReports(reports, selectedTypes, includePending, selectedStatus) {
   };
 }
 
-export default function MapView({ reportRecords, users, onOpenReport }) {
+export default function MapView({ searchLocation, reportRecords, users, onOpenReport }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const [selectedTypes, setSelectedTypes] = useState(
@@ -565,6 +565,18 @@ export default function MapView({ reportRecords, users, onOpenReport }) {
     }
   }, [visibleReports, mapReady]);
 
+  useEffect(() => {
+    if (!mapReady || !searchLocation) return;
+    setSelectedReportId(null);
+    mapRef.current?.flyTo({ center: searchLocation.coordinates, zoom: 14, duration: 700 });
+  }, [searchLocation, mapReady]);
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver(() => mapRef.current?.resize());
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   const resetMap = useCallback(() => {
     mapRef.current?.flyTo({
       center: INITIAL_CENTER,
@@ -594,6 +606,11 @@ export default function MapView({ reportRecords, users, onOpenReport }) {
           gap: 16px;
           width: 100%;
           min-width: 0;
+          min-height: 0;
+          flex: 1;
+          overflow-y: auto;
+          padding: 24px;
+          position: relative;
           color: #e5e7eb;
           font-family: Inter, system-ui, sans-serif;
         }
@@ -651,14 +668,15 @@ export default function MapView({ reportRecords, users, onOpenReport }) {
         }
         .roadsafe-map-layout {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 230px;
+          grid-template-columns: minmax(0, 1fr) 272px;
+          align-items: stretch;
           gap: 12px;
           min-width: 0;
         }
         .roadsafe-map-canvas {
           position: relative;
           min-width: 0;
-          height: min(68vh, 680px);
+          height: max(520px, calc(100dvh - 290px));
           min-height: 390px;
           overflow: hidden;
           border: 1px solid #30343a;
@@ -697,7 +715,7 @@ export default function MapView({ reportRecords, users, onOpenReport }) {
           border: 1px solid #30343a;
           background: #1b1e22;
           border-radius: 9px;
-          padding: 14px;
+          padding: 16px;
         }
         .roadsafe-map-panel-title {
           margin: 0 0 12px;
@@ -736,8 +754,8 @@ export default function MapView({ reportRecords, users, onOpenReport }) {
           cursor: pointer;
         }
         .roadsafe-map-details {
-          margin-top: 10px;
-          padding: 12px;
+          margin-top: 0;
+          padding: 16px;
           background: #15171a;
           border: 1px solid #30343a;
           border-radius: 8px;
@@ -801,7 +819,7 @@ export default function MapView({ reportRecords, users, onOpenReport }) {
           border-radius: 7px;
           font-size: 12px;
         }
-        @media (max-width: 800px) {
+        @media (max-width: 1100px) {
           .roadsafe-map-layout {
             grid-template-columns: minmax(0, 1fr);
           }
@@ -814,7 +832,9 @@ export default function MapView({ reportRecords, users, onOpenReport }) {
             min-height: 340px;
           }
         }
-        @media (max-width: 480px) {
+        @media (max-width: 600px) {
+          .roadsafe-map-page { padding: 16px; }
+          .roadsafe-map-chip { flex-wrap: wrap; }
           .roadsafe-map-metrics { gap: 6px; }
           .roadsafe-map-metric { padding: 10px; }
           .roadsafe-map-metric-value { font-size: 19px; }
@@ -1019,32 +1039,6 @@ export default function MapView({ reportRecords, users, onOpenReport }) {
                 Medical: {medical.error}
               </div>
             )}
-          </section>
-
-          <section className="roadsafe-map-panel">
-            <h3 className="roadsafe-map-panel-title">Map legend</h3>
-
-            {REPORT_TYPES.map((type) => (
-              <div className="roadsafe-map-filter" key={type.id}>
-                <span
-                  className="roadsafe-map-dot"
-                  style={{ background: type.color }}
-                />
-                {type.label}
-              </div>
-            ))}
-
-            <div
-              style={{
-                marginTop: 9,
-                color: "#858c96",
-                fontSize: 11,
-                lineHeight: 1.6,
-              }}
-            >
-              Clusters represent multiple reports. The heatmap highlights areas
-              with a concentration of incidents.
-            </div>
           </section>
 
           {selectedReport && (

@@ -1,6 +1,8 @@
-export default function TopBar({ live = false, pendingCount = 0, onOpenReports }) {
+import LocationSearch from './LocationSearch.jsx'
+
+export default function TopBar({ live = false, pendingCount = 0, onOpenReports, mapSearch, onLocationSelect, onSignOut }) {
   return (
-    <header className="h-16 bg-darkCard/90 backdrop-blur border-b border-darkBorder px-6 flex items-center justify-between z-20 shadow-sm">
+    <header className="roadsafe-topbar shrink-0 h-16 bg-darkCard/90 backdrop-blur border-b border-darkBorder px-6 flex items-center justify-between z-20 shadow-sm">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2 text-xs font-semibold bg-darkBg border border-darkBorder px-3 py-1.5 rounded-lg text-slate-300">
           <i className="fa-solid fa-location-dot text-orange-500"></i> Region: Central Luzon / Bulacan
@@ -11,7 +13,7 @@ export default function TopBar({ live = false, pendingCount = 0, onOpenReports }
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="relative">
+        {mapSearch ? <LocationSearch onSelect={onLocationSelect} /> : <div className="relative">
           <input
             type="text"
             aria-label="Search"
@@ -19,7 +21,7 @@ export default function TopBar({ live = false, pendingCount = 0, onOpenReports }
             className="bg-darkBg border border-darkBorder rounded-lg px-4 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brandOrange w-64 shadow-inner"
           />
           <i className="fa-solid fa-magnifying-glass absolute right-3 top-2 text-slate-400 text-xs"></i>
-        </div>
+        </div>}
         <button
           aria-label="Reports awaiting review" title={`${pendingCount} reports awaiting review`}
           onClick={onOpenReports}
@@ -29,6 +31,7 @@ export default function TopBar({ live = false, pendingCount = 0, onOpenReports }
           
           {pendingCount > 0 && <span className="absolute -top-1 -right-1 min-w-4 px-1 bg-orange-500 text-white rounded-full text-[10px]">{pendingCount}</span>}
         </button>
+        {onSignOut && <button type="button" onClick={onSignOut} aria-label="Sign out" title="Sign out" className="p-2 text-slate-400 hover:text-white"><i className="fa-solid fa-arrow-right-from-bracket" /></button>}
       </div>
     </header>
   )
