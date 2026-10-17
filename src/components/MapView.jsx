@@ -23,7 +23,7 @@ import useMedicalStations from "../hooks/useMedicalStations.js";
 import useRadiusArea from "../hooks/useRadiusArea.js";
 
 import useResponderState from "../hooks/useResponderState.js";
-import { previewRoute, fetchRoute, drawRoute, focusRoute } from "../services/routing.js";
+import { previewRoute, fetchRoute, drawRoutes, focusRoute } from "../services/routing.js";
 import ResponderCard from "./ResponderCard.jsx";
 import MapReportCard from "./MapReportCard.jsx";
 import { luzonReportsResponse, LUZON_SAMPLE_BOUNDS } from "../data/luzonReports.js";
@@ -323,30 +323,37 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const [mapReady, setMapReady] = useState(false);
   const [radiusKm, setRadiusKm] = useState(2.5);
   const [selectedStation, setSelectedStation] = useState(null);
-  const responders = useResponderState();
-  const [routeInfo, setRouteInfo] = useState(null);
+  const responders = useResponderState(selectedStation);
+  const [routes, setRoutes] = useState({});
+  const routeCache = useRef(new Map());
+  const activeRequests = responders.activeRequests;
+  const retainedStations = useMemo(() => activeRequests.map(({ station }) => station), [activeRequests]);
   const stationRequest = selectedStation ? responders.get(selectedStation.id).request : null;
+  const routeInfo = stationRequest ? routes[stationRequest.id]?.route ?? null : null;
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    if (!selectedStation || !stationRequest) {
-      setRouteInfo(null);
-      drawRoute(map, null);
-      return;
-    }
+    if (!mapReady) return;
     const controller = new AbortController();
-    const from = [selectedStation.lng, selectedStation.lat];
-    const to = stationRequest.sceneCoordinates;
-    const preview = previewRoute(from, to);
-    setRouteInfo(preview);
-    drawRoute(map, preview, selectedStation.responderType);
-    fetchRoute(from, to, { signal: controller.signal }).then((route) => {
-      if (controller.signal.aborted || mapRef.current !== map) return;
-      setRouteInfo(route);
-      drawRoute(map, route, selectedStation.responderType);
-    });
+    const next = {};
+    for (const { station, request } of activeRequests) {
+      const route = routeCache.current.get(request.id) || previewRoute([station.lng, station.lat], request.sceneCoordinates);
+      if (route) next[request.id] = { route, responderType: station.responderType };
+    }
+    setRoutes(next);
+    const activeIds = new Set(activeRequests.map(({ request }) => request.id));
+    for (const id of routeCache.current.keys()) if (!activeIds.has(id)) routeCache.current.delete(id);
+    for (const { station, request } of activeRequests) {
+      if (routeCache.current.has(request.id)) continue;
+      fetchRoute([station.lng, station.lat], request.sceneCoordinates, { signal: controller.signal }).then((route) => {
+        if (controller.signal.aborted || !route) return;
+        routeCache.current.set(request.id, route);
+        setRoutes((previous) => ({ ...previous, [request.id]: { route, responderType: station.responderType } }));
+      });
+    }
     return () => controller.abort();
-  }, [mapReady, selectedStation, stationRequest]);
+  }, [mapReady, activeRequests]);
+  useEffect(() => {
+    if (mapReady && mapRef.current) drawRoutes(mapRef.current, Object.values(routes));
+  }, [mapReady, routes]);
   useEffect(() => {
     if (!routeInfo) return;
     // Measure the card after React commits its active-route layout.
@@ -374,14 +381,18 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     mapReady,
     searchAnchor,
     radiusKm,
-    setSelectedStation
+    setSelectedStation,
+    false,
+    retainedStations
   );
   const medical = useMedicalStations(
     mapRef,
     mapReady,
     searchAnchor,
     radiusKm,
-    setSelectedStation
+    setSelectedStation,
+    false,
+    retainedStations
   );
 
     // Close the station card when its layer is hidden.
@@ -391,8 +402,8 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
       selectedStation.responderType === "police"
         ? police.deployed
         : medical.deployed;
-    if (!stillShown) setSelectedStation(null);
-  }, [selectedStation, police.deployed, medical.deployed]);
+    if (!stillShown && !stationRequest) setSelectedStation(null);
+  }, [selectedStation, stationRequest, police.deployed, medical.deployed]);
 
   // The selected report is the "scene" that assistance is requested for.
   const scene = selectedReport?.coordinates
@@ -960,7 +971,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
               data={responders.get(selectedStation.id)}
               onStatus={(value) => responders.setStatus(selectedStation.id, value)}
               onStationStatus={(value) => responders.setStationStatus(selectedStation.id, value)}
-              onRequest={(details) => scene && responders.requestAssistance(selectedStation.id, scene, details)}
+              onRequest={(details) => scene && responders.requestAssistance(selectedStation.id, scene, details, selectedStation)}
               onRelease={() => responders.release(selectedStation.id)}
               onClose={() => setSelectedStation(null)}
             />

@@ -29,6 +29,10 @@ export async function fetchRoute(from, to, { signal, fetchImpl = globalThis.fetc
 }
 
 export function drawRoute(map, route, responderType = 'police') {
+  drawRoutes(map, route ? [{ route, responderType }] : [])
+}
+
+export function drawRoutes(map, routes) {
   const source = 'roadsafe-personnel-route'
   if (!map.getSource(source)) map.addSource(source, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   for (const [suffix, paint] of [
@@ -40,7 +44,7 @@ export function drawRoute(map, route, responderType = 'police') {
     if (!map.getLayer(id)) map.addLayer({ id, source, type: 'line', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint })
     map.moveLayer(id)
   }
-  map.getSource(source).setData({ type: 'FeatureCollection', features: route ? [{ type: 'Feature', properties: { responderType, isFallback: route.isFallback }, geometry: route.geometry }] : [] })
+  map.getSource(source).setData({ type: 'FeatureCollection', features: routes.map(({ route, responderType }) => ({ type: 'Feature', properties: { responderType, isFallback: route.isFallback }, geometry: route.geometry })) })
 }
 
 export function focusRoute(map, route) {

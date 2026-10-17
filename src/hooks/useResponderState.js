@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DEFAULT_RESPONDER, createPersonnelRequest, advancePersonnelRequest, RESPONDER_STATUSES, STATION_STATUSES } from '../data/responders.js'
 
 // v3 personnel requests are independent of historical v1/v2 staff assignments.
@@ -17,12 +17,21 @@ function read() {
   } catch { return {} }
 }
 
-export default function useResponderState() {
+export default function useResponderState(selectedStation) {
   const [state, setState] = useState(read)
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)) }
     catch { /* Requests remain usable in memory if storage is unavailable. */ }
   }, [state])
+  // Recover station coordinates for requests saved before station snapshots existed.
+  useEffect(() => {
+    if (!selectedStation) return
+    setState((previous) => {
+      const current = previous[selectedStation.id]
+      if (!current?.request || current.station) return previous
+      return { ...previous, [selectedStation.id]: { ...current, station: selectedStation } }
+    })
+  }, [selectedStation])
   const get = useCallback((id) => state[id] ?? DEFAULT_RESPONDER, [state])
   const setStationStatus = useCallback((id, stationStatus) => {
     if (!STATION_STATUSES.includes(stationStatus)) return
@@ -34,15 +43,16 @@ export default function useResponderState() {
       return { ...previous, [id]: advancePersonnelRequest(current, status) }
     })
   }, [])
-  const requestAssistance = useCallback((id, scene, details) => {
+  const requestAssistance = useCallback((id, scene, details, station) => {
     const request = createPersonnelRequest(scene, details)
     if (!request) return
     setState((previous) => previous[id]?.request ? previous : {
-      ...previous, [id]: { ...DEFAULT_RESPONDER, ...previous[id], status: 'Request Sent', request },
+      ...previous, [id]: { ...DEFAULT_RESPONDER, ...previous[id], status: 'Request Sent', request, station },
     })
   }, [])
   const release = useCallback((id) => {
     setState((previous) => ({ ...previous, [id]: { ...DEFAULT_RESPONDER } }))
   }, [])
-  return { get, setStatus, setStationStatus, requestAssistance, release }
+  const activeRequests = useMemo(() => Object.values(state).filter((entry) => entry.request && entry.station), [state])
+  return { activeRequests, get, setStatus, setStationStatus, requestAssistance, release }
 }

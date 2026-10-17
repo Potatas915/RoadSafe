@@ -19,7 +19,8 @@ export default function usePoliceStations(
   centerOverride,
   radiusKm,
   onSelect,
-  nationwide = false
+  nationwide = false,
+  retainedStations
 ) {
   return useStationLayer(
     POLICE_CONFIG,
@@ -28,6 +29,7 @@ export default function usePoliceStations(
     centerOverride,
     radiusKm,
     onSelect,
-    nationwide
+    nationwide,
+    retainedStations
   );
 }

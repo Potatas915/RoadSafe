@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { previewRoute, fetchRoute, drawRoute, focusRoute, routePadding } from '../src/services/routing.js'
+import { previewRoute, fetchRoute, drawRoute, drawRoutes, focusRoute, routePadding } from '../src/services/routing.js'
 const from = [120.9, 14.8], to = [120.92, 14.82]
 
 test('route camera reserves visible space beside or above the station card', () => {
@@ -48,3 +48,21 @@ test('map route layers display medical geometry, frame endpoints and clear on ca
   assert.equal(layers.size, 3)
   assert.deepEqual(data.features, [])
 })
+
+test('medical and police routes coexist and cancelling one retains the other', () => {
+  const sources = new Map(), layers = new Map();
+  let data;
+  const map = {
+    getSource: id => sources.get(id), addSource: id => sources.set(id, { setData: value => { data = value } }),
+    getLayer: id => layers.get(id), addLayer: layer => layers.set(layer.id, layer), moveLayer() {},
+  };
+  const medical = { route: previewRoute(from, to), responderType: 'medical' };
+  const police = { route: previewRoute([120.89, 14.79], to), responderType: 'police' };
+  drawRoutes(map, [medical, police]);
+  assert.deepEqual(data.features.map(f => f.properties.responderType), ['medical', 'police']);
+  drawRoutes(map, [medical]);
+  assert.equal(data.features.length, 1);
+  assert.deepEqual(data.features[0].geometry, medical.route.geometry);
+  drawRoutes(map, []);
+  assert.equal(data.features.length, 0);
+});

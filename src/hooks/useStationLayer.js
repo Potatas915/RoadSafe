@@ -3,6 +3,7 @@ import { filterByRadius } from "../services/policeStations.js";
 
 export const RADIUS_OPTIONS_KM = [1, 1.5, 2, 2.5, 3, 3.5, 10];
 
+const NO_STATIONS = [];
 const EMPTY = { type: "FeatureCollection", features: [] };
 
 function toGeoJSON(stations) {
@@ -143,7 +144,8 @@ export default function useStationLayer(
   centerOverride,
   radiusKm,
   onSelect,
-  nationwide = false
+  nationwide = false,
+  retainedStations = NO_STATIONS
 ) {
   const onSelectRef = useRef(onSelect);
   useEffect(() => {
@@ -177,7 +179,11 @@ export default function useStationLayer(
     ensureLayers(map, ids, config)
       .then(() => {
         if (cancelled || !map.getSource(ids.source)) return;
-        map.getSource(ids.source).setData(deployed ? toGeoJSON(stations) : EMPTY);
+        const visible = new Map((deployed ? stations : []).map((station) => [String(station.id), station]));
+        for (const station of retainedStations) {
+          if (station.responderType === config.id) visible.set(String(station.id), station);
+        }
+        map.getSource(ids.source).setData(toGeoJSON([...visible.values()]));
         map
           .getSource(ids.areaSource)
           .setData(deployed ? areaGeoJSON(area) : EMPTY);
@@ -188,7 +194,7 @@ export default function useStationLayer(
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deployed, stations, area, mapReady, mapRef, config]);
+  }, [deployed, stations, area, mapReady, mapRef, config, retainedStations]);
 
   // Popup + pointer cursor
   useEffect(() => {
