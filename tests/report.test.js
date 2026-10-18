@@ -131,10 +131,14 @@ test('map layer setup executes and uses valid category colors and severity stops
   assert.deepEqual(layers.map((l) => l.id), ['roadsafe-heatmap', 'roadsafe-clusters', 'roadsafe-cluster-count', 'roadsafe-report-glow', 'roadsafe-affected-streets', 'roadsafe-report-points'])
   const weight = layers.find((l) => l.id === 'roadsafe-heatmap').paint['heatmap-weight']
   assert.deepEqual(JSON.parse(JSON.stringify(weight)), ['interpolate', ['linear'], ['get', '_severityWeight'], 1, .25, 3, 1])
-  for (const id of ['roadsafe-report-glow', 'roadsafe-report-points']) {
+  for (const id of ['roadsafe-report-glow']) {
     const colors = layers.find((l) => l.id === id).paint['circle-color']
     assert.deepEqual(JSON.parse(JSON.stringify(colors)), ['coalesce', ['get', 'caseColor'], '#94a3b8'])
   }
+  const marker = layers.find((layer) => layer.id === 'roadsafe-report-points')
+  assert.equal(marker.type, 'symbol')
+  assert.ok(JSON.stringify(marker.layout['icon-image']).includes('reportType'))
+  assert.ok(JSON.stringify(marker.layout['icon-image']).includes('caseColor'))
   vm.runInContext('addReportLayers(map);', context)
   assert.equal(layers.length, 6, 'setup does not duplicate existing report layers')
 })

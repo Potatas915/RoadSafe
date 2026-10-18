@@ -27,6 +27,8 @@ import { previewRoute, fetchRoute, drawRoutes, focusRoute } from "../services/ro
 import { nearbyStreetFeatures } from "../services/affectedStreets.js";
 import ResponderCard from "./ResponderCard.jsx";
 import MapReportCard from "./MapReportCard.jsx";
+import AccidentCategoryIcon from "./AccidentCategoryIcon.jsx";
+import { registerAccidentIcons } from "../models/accidentIcons.js";
 import { luzonReportsResponse, LUZON_SAMPLE_BOUNDS } from "../data/luzonReports.js";
 
 const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
@@ -275,25 +277,14 @@ function addReportLayers(map) {
 
   map.addLayer({
     id: "roadsafe-report-points",
-    type: "circle",
+    type: "symbol",
     source: "roadsafe-reports",
     filter: ["!", ["has", "point_count"]],
-    paint: {
-      "circle-radius": [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        5,
-        4,
-        12,
-        6,
-        16,
-        8,
-      ],
-      "circle-color": CASE_COLOR,
-      "circle-stroke-color": CASE_COLOR,
-      "circle-stroke-width": 2,
-      "circle-opacity": 0.98,
+    layout: {
+      "icon-image": ["concat", "roadsafe-accident-", ["get", "reportType"], "-", ["coalesce", ["get", "caseColor"], "#94a3b8"]],
+      "icon-size": ["interpolate", ["linear"], ["zoom"], 5, 0.7, 14, 1, 18, 1.15],
+      "icon-allow-overlap": true,
+      "icon-ignore-placement": true,
     },
   });
 }
@@ -557,6 +548,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     map.on("load", () => {
       try {
         applyRoadSafeBasemapStyle(map);
+        registerAccidentIcons(map);
         addReportLayers(map);
         setMapReady(true);
         setMapError("");
@@ -1027,13 +1019,11 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
                   checked={selectedTypes.includes(type.id)}
                   onChange={() => toggleType(type.id)}
                 />
-                <span
-                  className="roadsafe-map-dot"
-                  style={{ background: type.color }}
-                />
+                <AccidentCategoryIcon category={type.id} className="shrink-0 text-slate-300" />
                 <span>{type.label}</span>
               </label>
             ))}
+            <p className="text-[10px] text-slate-500 mt-2">Icon shape = accident type · color = severity</p>
 
             <label className="roadsafe-map-toggle">
               <input

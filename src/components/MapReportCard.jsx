@@ -1,5 +1,6 @@
 import { ACCIDENT_CATEGORIES, formatDateTime } from '../models/report.js'
 import { caseSeverity, reportedVehicles } from '../models/caseSeverity.js'
+import { ACCIDENT_ICON_PATHS } from '../models/accidentIcons.js'
 
 const label = 'text-slate-400 block text-[10px] uppercase font-semibold'
 const box = 'bg-darkBg p-2.5 rounded-xl border border-darkBorder space-y-1'
@@ -12,7 +13,7 @@ export default function MapReportCard({ report, onClose, onZoom, onOpenReport })
   const severity = caseSeverity(report)
   return <section aria-label="Selected incident report" className="absolute left-3 bottom-3 z-10 w-[400px] max-w-[calc(100%-24px)] max-h-[calc(100%-24px)] overflow-y-auto bg-darkCard/95 backdrop-blur border border-darkBorder rounded-xl shadow-2xl" style={{ borderTopColor: severity.color, borderTopWidth: 2 }}>
     <header className="p-3 border-b border-darkBorder flex items-start gap-3 bg-slate-900/50 rounded-t-2xl">
-      <span className="w-9 h-9 shrink-0 rounded-xl border flex items-center justify-center" style={{ color: severity.color, backgroundColor: `${severity.color}15`, borderColor: `${severity.color}40` }}><i className={`fa-solid ${report.categoryId === 'pedestrian' ? 'fa-person-walking' : 'fa-car-burst'}`} /></span>
+      <span className="w-9 h-9 shrink-0 rounded-xl border flex items-center justify-center" style={{ color: severity.color, backgroundColor: `${severity.color}15`, borderColor: `${severity.color}40` }}><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" fillRule="evenodd"><path d={ACCIDENT_ICON_PATHS[report.categoryId] ?? ACCIDENT_ICON_PATHS.other} /></svg></span>
       <div className="min-w-0 flex-1">
         <h3 className="font-bold text-sm text-white">{category.label}</h3>
         <p className="font-mono text-[10px] text-orange-400 break-all">{report.id}</p>
