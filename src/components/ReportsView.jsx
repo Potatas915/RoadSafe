@@ -26,17 +26,21 @@ export default function ReportsView({ reports, users, onOpenReport }) {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="text-slate-400 border-b border-darkBorder"><tr>{['Report ID', 'Incident time', 'Location', 'Accident type', 'Status / verification', 'Assigned officer', 'Details'].map((label) => <th key={label} className="p-4">{label}</th>)}</tr></thead>
+            <thead className="text-slate-400 border-b border-darkBorder"><tr>{['Report ID', 'Reporter info', 'Incident time', 'Location', 'Accident type', 'Status / verification', 'Assigned officer', 'Details'].map((label) => <th key={label} className="p-4">{label}</th>)}</tr></thead>
             <tbody className="divide-y divide-darkBorder text-slate-300">
               {visible.map((r) => <tr key={r.id} className="hover:bg-slate-800/40">
                 <td className="p-4 font-mono text-white">{r.id}</td>
+                <td className="p-4 min-w-48 max-w-xs break-words">
+                  <span className="block text-white whitespace-pre-wrap"><span className="sr-only">Full name: </span>{r.reporter.name ?? 'Name not provided'}</span>
+                  <span className="block mt-1 text-slate-400 whitespace-pre-wrap"><span className="sr-only">Contact number: </span>{r.reporter.contact ?? 'Contact not provided'}</span>
+                </td>
                 <td className="p-4">{formatDateTime(r.occurredAt)}</td><td className="p-4">{r.location.address ?? 'Confirmed map location'}</td>
                 <td className="p-4">{categoryLabel(r.categoryId)}</td>
                 <td className="p-4">{r.status}<span className={`block mt-1 ${isOfficiallyVerified(r) ? 'text-emerald-400' : 'text-amber-300'}`}>{isOfficiallyVerified(r) ? 'Officially verified' : 'Public submission — unverified'}</span></td>
                 <td className="p-4">{officerName(users, r.assignedOfficerId)}</td>
                 <td className="p-4"><button onClick={() => onOpenReport(r.id)} className="px-3 py-2 bg-slate-800 rounded-lg">View {r.id}</button></td>
               </tr>)}
-              {!visible.length && <tr><td colSpan={7} className="p-6 text-slate-400">No reports match these filters.</td></tr>}
+              {!visible.length && <tr><td colSpan={8} className="p-6 text-slate-400">No reports match these filters.</td></tr>}
             </tbody>
           </table>
         </div>

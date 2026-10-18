@@ -37,11 +37,17 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
             <div><dt className="text-slate-400">Submitted (Manila)</dt><dd>{formatDateTime(report.submittedAt)}</dd></div>
             <div><dt className="text-slate-400">Location</dt><dd>{report.location.address ?? 'Confirmed map location'}</dd><dd className="text-orange-300">{coords ? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` : 'No GPS coordinates provided'}</dd></div>
             <div><dt className="text-slate-400">Accident category</dt><dd>{categoryLabel(report.categoryId)}</dd></div>
-            <div><dt className="text-slate-400">Reporter</dt><dd>{report.reporter.name ?? 'Not provided'}</dd><dd>{report.reporter.contact ?? 'Contact not provided'}</dd></div>
             <div><dt className="text-slate-400">Vehicles involved</dt><dd>{report.vehicles.length ? report.vehicles.map((v) => `${v.count} × ${v.type}`).join(', ') : 'Not applicable'}</dd></div>
             <div><dt className="text-slate-400">Injury information</dt><dd>{report.injuries.status}</dd><dd>Injured: {report.injuries.injuredCount ?? 'Unknown'}; fatalities: {report.injuries.fatalityCount ?? 'Unknown'}</dd></div>
             <div><dt className="text-slate-400">Verification</dt><dd>{report.verification.verifiedAt ? `${officerName(users, report.verification.verifiedBy)} — ${formatDateTime(report.verification.verifiedAt)}` : 'Not verified'}</dd></div>
           </dl>
+          <section aria-labelledby="reporter-info-title" className="border border-darkBorder bg-darkBg rounded-xl p-4">
+            <h3 id="reporter-info-title" className="font-semibold text-white mb-3">Reporter info</h3>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><dt className="text-slate-400">Full name</dt><dd className="mt-1 whitespace-pre-wrap break-words">{report.reporter.name ?? 'Not provided'}</dd></div>
+              <div><dt className="text-slate-400">Contact number</dt><dd className="mt-1 whitespace-pre-wrap break-words">{report.reporter.contact ?? 'Not provided'}</dd></div>
+            </dl>
+          </section>
           <section><h3 className="text-slate-400 mb-1">Description</h3><p>{report.description}</p></section>
           <section><h3 className="text-slate-400 mb-2">Photo evidence / attachments</h3>
             {!report.evidence.length ? <p>No evidence attached.</p> : <ul className="space-y-2">{report.evidence.map((file) => <li key={file.id}>{!file.url ? <span>Photo temporarily unavailable: {file.fileName}</span> : <a href={file.url} target="_blank" rel="noreferrer" className="text-orange-300 underline">{file.fileName}</a>}{file.url && file.mimeType.startsWith('image/') && <img src={file.url} alt={file.fileName} className="mt-2 max-h-48 rounded-lg" />}</li>)}</ul>}

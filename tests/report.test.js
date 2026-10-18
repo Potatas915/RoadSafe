@@ -99,6 +99,25 @@ test('details render the chosen record, real evidence, unknown injuries, and all
   assert.ok(html.includes('Unknown') && html.includes('/evidence/scene.jpg'))
 })
 
+test('admin reporter info shows submitted full name/contact, escapes text and handles absent details', () => {
+  const users = reportsResponse.included.users
+  const report = { ...first, reporter: { ...first.reporter, name: 'José Dela Cruz <Reporter>', contact: '+63 912 345 6789' } }
+  const modal = (r) => renderToStaticMarkup(React.createElement(ReportModal, { report: r, users }))
+  const table = (records) => renderToStaticMarkup(React.createElement(ReportsView, { reports: records, users }))
+  for (const html of [modal(report), table([report])]) {
+    assert.ok(html.includes('Reporter info'))
+    assert.ok(html.includes('Full name') && html.includes('Contact number'))
+    assert.ok(html.includes('José Dela Cruz &lt;Reporter&gt;'))
+    assert.ok(html.includes('+63 912 345 6789'))
+    assert.ok(!html.includes('Demo Reporter'), 'Account name must not replace the submitted reporter name')
+  }
+  const missing = { ...report, reporter: { userId: null, name: null, contact: null } }
+  assert.ok(modal(missing).includes('Not provided'))
+  assert.ok(table([missing]).includes('Name not provided'))
+  assert.ok(table([missing]).includes('Contact not provided'))
+  assert.ok(table([]).includes('colSpan="8"'))
+})
+
 // Execute the real layer builder: a bundler accepts undefined identifiers in
 // function bodies, so schema/render tests alone cannot catch setup exceptions.
 test('map layer setup executes and uses valid category colors and severity stops', () => {
