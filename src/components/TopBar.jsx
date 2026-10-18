@@ -1,6 +1,7 @@
 import LocationSearch from './LocationSearch.jsx'
+import NotificationBell from './NotificationBell.jsx'
 
-export default function TopBar({ live = false, pendingCount = 0, onOpenReports, mapSearch, onLocationSelect, onSignOut }) {
+export default function TopBar({ live = false, notifications, unreadCount, onReadNotifications, onOpenNotificationReport, notificationStorageWarning, mapSearch, onLocationSelect, onSignOut }) {
   return (
     <header className="roadsafe-topbar shrink-0 h-16 bg-darkCard/90 backdrop-blur border-b border-darkBorder px-6 flex items-center justify-between z-20 shadow-sm">
       <div className="flex items-center gap-4">
@@ -22,15 +23,7 @@ export default function TopBar({ live = false, pendingCount = 0, onOpenReports, 
           />
           <i className="fa-solid fa-magnifying-glass absolute right-3 top-2 text-slate-400 text-xs"></i>
         </div>}
-        <button
-          aria-label="Reports awaiting review" title={`${pendingCount} reports awaiting review`}
-          onClick={onOpenReports}
-          className="relative p-2 text-slate-400 hover:text-white bg-darkBg border border-darkBorder rounded-lg transition"
-        >
-          <i className="fa-regular fa-bell text-sm"></i>
-          
-          {pendingCount > 0 && <span className="absolute -top-1 -right-1 min-w-4 px-1 bg-orange-500 text-white rounded-full text-[10px]">{pendingCount}</span>}
-        </button>
+        <NotificationBell live={live} notifications={notifications} unreadCount={unreadCount} onRead={onReadNotifications} onOpenReport={onOpenNotificationReport} storageWarning={notificationStorageWarning} />
         {onSignOut && <button type="button" onClick={onSignOut} aria-label="Sign out" title="Sign out" className="p-2 text-slate-400 hover:text-white"><i className="fa-solid fa-arrow-right-from-bracket" /></button>}
       </div>
     </header>

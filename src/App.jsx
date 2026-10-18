@@ -12,6 +12,7 @@ import { parseReportsResponse, reportSummary, ROLES, updateReport } from './mode
 import { backend } from './backend/client.js'
 import { loadReportFeed, saveReportReview } from './backend/reports.js'
 import ManagerAuth from './backend/ManagerAuth.jsx'
+import useNotifications from './hooks/useNotifications.js'
 
 export default function App() {
   return backend
@@ -64,6 +65,7 @@ function ManagerDashboard({ signedInUser }) {
   }, [live])
   const reports = response.data
   const users = response.included.users
+  const { notifications, unreadCount, markRead, storageWarning } = useNotifications(reports, live ? signedInUser.id : 'demo')
   const currentUser = live ? users.find((user) => user.id === signedInUser.id) : users.find((user) => user.role === ROLES.ADMIN) ?? null
   const selectedReport = reports.find((report) => report.id === activeReport) ?? null
   async function saveReport(id, patch) {
@@ -75,6 +77,10 @@ function ManagerDashboard({ signedInUser }) {
       await refresh()
     } else {
       const updated = updateReport(current, patch, currentUser.id)
+      if (updated.status !== current.status) {
+        updated.events = [...(current.events ?? []), { id: crypto.randomUUID(), type: 'review_updated',
+          fromStatus: current.status, status: updated.status, createdAt: new Date().toISOString() }]
+      }
       const next = { ...response, data: reports.map((report) => report.id === id ? updated : report) }
       parseReportsResponse(next); setResponse(next)
     }
@@ -84,7 +90,7 @@ function ManagerDashboard({ signedInUser }) {
     <div data-tactical={view === 'map-view'} className="roadsafe-shell bg-darkBg text-slate-100 font-sans antialiased h-screen flex overflow-hidden">
       <Sidebar view={view} onChange={setView} pendingCount={reportSummary(reports).pending} currentUser={currentUser} />
       <div className="flex-1 flex flex-col relative overflow-hidden bg-darkBg min-w-0">
-        <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={live ? () => backend.auth.signOut() : undefined} live={live} pendingCount={reportSummary(reports).pending} onOpenReports={() => setView('reports-view')} />
+        <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={live ? () => backend.auth.signOut() : undefined} live={live} notifications={notifications} unreadCount={unreadCount} onReadNotifications={markRead} notificationStorageWarning={storageWarning} onOpenNotificationReport={(id) => { setView('reports-view'); setActiveReport(id) }} />
         <p className="sr-only" role="status">{source}</p>
         {view === 'map-view' && <MapView searchLocation={searchLocation} reportRecords={reports} users={users} onOpenReport={setActiveReport} />}
         {view === 'dashboard-view' && <DashboardView reports={reports} />}
