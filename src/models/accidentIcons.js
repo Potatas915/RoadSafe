@@ -17,21 +17,44 @@ export function registerAccidentIcons(map) {
     const id = accidentIconId(category, color)
     if (map.hasImage(id)) continue
     const canvas = document.createElement('canvas')
-    canvas.width = canvas.height = 128
+    canvas.width = canvas.height = 192
     const ctx = canvas.getContext('2d')
-    ctx.scale(4, 4)
-    ctx.beginPath(); ctx.arc(16, 16, 15, 0, Math.PI * 2)
-    ctx.fillStyle = '#0d121ae8'; ctx.fill()
-    ctx.strokeStyle = `${color}70`; ctx.lineWidth = 1; ctx.stroke()
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const silhouette = new Path2D(path)
     const [x, y, width, height] = accidentIconViewBox(category)
     // Fit the full bounds inside a 12.8px inner radius, not a square that
     // overhangs the circular badge (especially the warning triangle).
     const scale = 25.6 / Math.hypot(width, height)
-    ctx.translate(16 - width * scale / 2, 16 - height * scale / 2)
-    ctx.scale(scale, scale)
-    ctx.translate(-x, -y)
-    ctx.fillStyle = color
-    ctx.fill(new Path2D(path), 'evenodd')
-    map.addImage(id, ctx.getImageData(0, 0, 128, 128), { pixelRatio: 4 })
+    function draw(phase) {
+      ctx.setTransform(4, 0, 0, 4, 0, 0)
+      ctx.clearRect(0, 0, 48, 48)
+      // Keep the icon steady inside a faint tint; two ripples travel outward.
+      ctx.beginPath(); ctx.arc(24, 24, 13.4, 0, Math.PI * 2)
+      ctx.fillStyle = color; ctx.globalAlpha = 0.08; ctx.fill()
+      ctx.strokeStyle = color; ctx.lineWidth = 0.8
+      for (const offset of [0, 0.5]) {
+        const progress = (phase + offset) % 1
+        ctx.beginPath(); ctx.arc(24, 24, 13.4 + progress * 9.6, 0, Math.PI * 2)
+        ctx.globalAlpha = 0.55 * (1 - progress) ** 2
+        ctx.stroke()
+      }
+      ctx.globalAlpha = 1
+      ctx.translate(24 - width * scale / 2, 24 - height * scale / 2)
+      ctx.scale(scale, scale)
+      ctx.translate(-x, -y)
+      ctx.fillStyle = color
+      ctx.fill(silhouette, 'evenodd')
+      return ctx.getImageData(0, 0, 192, 192).data
+    }
+    map.addImage(id, {
+      width: 192,
+      height: 192,
+      data: draw(0),
+      render() {
+        this.data = draw(reducedMotion.matches ? 0 : (performance.now() % 2000) / 2000)
+        if (!reducedMotion.matches) map.triggerRepaint()
+        return true
+      },
+    }, { pixelRatio: 4 })
   }
 }
