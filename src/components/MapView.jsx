@@ -282,7 +282,7 @@ function addReportLayers(map) {
     filter: ["!", ["has", "point_count"]],
     layout: {
       "icon-image": ["concat", "roadsafe-accident-", ["get", "reportType"], "-", ["coalesce", ["get", "caseColor"], "#94a3b8"]],
-      "icon-size": ["interpolate", ["linear"], ["zoom"], 5, 0.7, 14, 1, 18, 1.15],
+      "icon-size": ["interpolate", ["linear"], ["zoom"], 5, 1.1, 10, 1.05, 14, 1, 17, 0.95, 22, 0.95],
       "icon-allow-overlap": true,
       "icon-ignore-placement": true,
     },
