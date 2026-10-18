@@ -1,6 +1,7 @@
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend } from 'chart.js'
 import { Line, Doughnut } from 'react-chartjs-2'
 import { ACCIDENT_CATEGORIES, REPORT_STATUSES, isOfficiallyVerified, reportSummary } from '../models/report.js'
+import DashboardIncidentFeed from './DashboardIncidentFeed.jsx'
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend)
 
 const tooltip = { backgroundColor: 'rgba(24, 30, 38, .96)', titleColor: '#f8fafc', bodyColor: '#cbd5e1', borderColor: 'rgba(255,255,255,.12)', borderWidth: 1, padding: 12, cornerRadius: 10, displayColors: true }
@@ -22,7 +23,7 @@ const gradient = (rgb) => ({ chart }) => {
   return fill
 }
 
-export default function DashboardView({ reports }) {
+export default function DashboardView({ reports, onOpenReport }) {
   const summary = reportSummary(reports)
   const counts = new Map()
   for (const report of reports) {
@@ -57,7 +58,10 @@ export default function DashboardView({ reports }) {
       <div><p className="text-[10px] uppercase tracking-[.2em] text-slate-500 mb-2">RoadSafe analytics</p><h1 className="text-xl font-semibold text-white">Traffic safety overview</h1></div>
       <span className="text-[11px] rounded-full border border-white/10 px-3 py-1.5 text-slate-400">Current report dataset</span>
     </div>
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">{cards.map(([label, value, icon, color]) => <section key={label} className={`${panel} p-4 md:p-5 relative overflow-hidden`} style={{ backgroundImage: `linear-gradient(125deg, ${color}16, ${color}03)` }}>
+    <div className="grid xl:grid-cols-[350px_minmax(0,1fr)] gap-5 items-start">
+    <DashboardIncidentFeed reports={reports} onOpenReport={onOpenReport} />
+    <div className="min-w-0 space-y-6 order-first xl:order-last">
+    <div className="grid grid-cols-2 2xl:grid-cols-4 gap-3 md:gap-4">{cards.map(([label, value, icon, color]) => <section key={label} className={`${panel} p-4 md:p-5 relative overflow-hidden`} style={{ backgroundImage: `linear-gradient(125deg, ${color}16, ${color}03)` }}>
       <i aria-hidden="true" className={`fa-solid ${icon} text-sm mb-4`} style={{ color }} />
       <h2 className="text-[11px] text-slate-400 min-h-8">{label}</h2><p className="text-3xl font-semibold tracking-tight text-white">{value}</p>
       <span className="absolute left-0 bottom-0 h-px w-full" style={{ background: `linear-gradient(90deg, ${color}80, transparent)` }} />
@@ -80,5 +84,7 @@ export default function DashboardView({ reports }) {
         return <div key={status}><div className="flex justify-between gap-3 mb-2 text-[11px]"><span className="text-slate-400">{status}</span><span className="text-slate-200 tabular-nums">{count}</span></div><div className="h-1.5 rounded-full bg-white/[.04] overflow-hidden"><div className="h-full rounded-full" style={{ width: `${summary.total ? count / summary.total * 100 : 0}%`, background: `linear-gradient(90deg, ${color}33, ${color}aa)` }} /></div></div>
       })}</div>
     </section>
+    </div>
+    </div>
   </main>
 }
