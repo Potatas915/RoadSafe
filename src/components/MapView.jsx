@@ -24,6 +24,7 @@ import useRadiusArea from "../hooks/useRadiusArea.js";
 
 import useResponderState from "../hooks/useResponderState.js";
 import { previewRoute, fetchRoute, drawRoutes, focusRoute } from "../services/routing.js";
+import { nearbyStreetFeatures } from "../services/affectedStreets.js";
 import ResponderCard from "./ResponderCard.jsx";
 import MapReportCard from "./MapReportCard.jsx";
 import { luzonReportsResponse, LUZON_SAMPLE_BOUNDS } from "../data/luzonReports.js";
@@ -46,6 +47,7 @@ const COLORS = {
 };
 
 const REPORT_TYPES = ACCIDENT_CATEGORIES;
+const CASE_COLOR = ["coalesce", ["get", "caseColor"], "#94a3b8"];
 const REPORT_COLOR = ["match", ["get", "reportType"],
   ...ACCIDENT_CATEGORIES.filter((c) => c.id !== "other").flatMap((c) => [c.id, c.color]),
   ACCIDENT_CATEGORIES.find((c) => c.id === "other").color];
@@ -251,11 +253,24 @@ function addReportLayers(map) {
     source: "roadsafe-reports",
     filter: ["!", ["has", "point_count"]],
     paint: {
-      "circle-radius": 15,
-      "circle-color": REPORT_COLOR,
-      "circle-opacity": 0.16,
-      "circle-blur": 0.9,
+      "circle-radius": ["interpolate", ["exponential", 2], ["zoom"], 0, ["get", "_accidentRadiusPixels0"], 24, ["*", 16777216, ["get", "_accidentRadiusPixels0"]]],
+      "circle-color": CASE_COLOR,
+      "circle-opacity": 0.10,
+      "circle-blur": 0,
+      "circle-stroke-color": CASE_COLOR,
+      "circle-stroke-width": 1,
+      "circle-stroke-opacity": 0.35,
     },
+  });
+
+  map.addSource("roadsafe-affected-streets", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({
+    id: "roadsafe-affected-streets",
+    type: "line",
+    source: "roadsafe-affected-streets",
+    minzoom: 13,
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": CASE_COLOR, "line-width": 1.5, "line-opacity": 0.85 },
   });
 
   map.addLayer({
@@ -275,9 +290,9 @@ function addReportLayers(map) {
         16,
         8,
       ],
-      "circle-color": REPORT_COLOR,
-      "circle-stroke-color": "#f8fafc",
-      "circle-stroke-width": 1.25,
+      "circle-color": CASE_COLOR,
+      "circle-stroke-color": CASE_COLOR,
+      "circle-stroke-width": 2,
       "circle-opacity": 0.98,
     },
   });
@@ -610,6 +625,24 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     if (source) {
       source.setData(visibleReports);
     }
+  }, [visibleReports, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    let previous = "";
+    const update = () => {
+      const source = map.getSource("roadsafe-affected-streets");
+      if (!source) return;
+      const data = nearbyStreetFeatures(map, visibleReports);
+      const serialized = JSON.stringify(data);
+      // Updating a source triggers idle again; skip identical geometry.
+      if (serialized !== previous) { previous = serialized; source.setData(data); }
+    };
+    update();
+    map.on("idle", update);
+    map.on("moveend", update);
+    return () => { map.off("idle", update); map.off("moveend", update); };
   }, [visibleReports, mapReady]);
 
   useEffect(() => {
@@ -954,6 +987,9 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
 
       <div className="roadsafe-map-layout">
         <div className="roadsafe-map-canvas">
+          <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2 rounded-lg border border-white/10 bg-darkBg/90 backdrop-blur px-3 py-2 text-[10px] text-slate-300 max-w-[calc(100%-64px)]" aria-label="Accident severity colors">
+            <span>Severity</span>{[["Low", "#86efac"], ["Medium", "#facc15"], ["High", "#fb923c"], ["Critical", "#fb7185"], ["Unknown", "#94a3b8"]].map(([label, color]) => <span key={label} className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />{label}</span>)}
+          </div>
           <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
           {selectedRecord && !selectedStation && <MapReportCard
             report={selectedRecord}

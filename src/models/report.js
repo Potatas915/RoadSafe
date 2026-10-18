@@ -1,3 +1,5 @@
+import { caseSeverity } from './caseSeverity.js'
+import { highlightRadius } from '../services/affectedStreets.js'
 // API contract v1. Labels are stored verbatim in report.status; IDs stay stable.
 export const REPORT_STATUS = Object.freeze({
   SUBMITTED: 'Submitted', UNDER_REVIEW: 'Under Review',
@@ -113,7 +115,9 @@ export function reportsToGeoJSON(reports) {
     type: 'Feature', id: r.id,
     geometry: { type: 'Point', coordinates: [r.location.coordinates.longitude, r.location.coordinates.latitude] },
     properties: { id: r.id, _reportId: r.id, reportType: r.categoryId, severity: r.severity,
-      _severityWeight: r.severity, status: r.status, verified: isOfficiallyVerified(r), description: r.description },
+      _severityWeight: r.severity, caseColor: caseSeverity(r).color, caseScore: caseSeverity(r).score,
+      _accidentRadiusPixels0: highlightRadius(0, r.location.coordinates.latitude),
+      status: r.status, verified: isOfficiallyVerified(r), description: r.description },
   })) }
 }
 export function reportSummary(reports) {
