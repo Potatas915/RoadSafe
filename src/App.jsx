@@ -90,7 +90,7 @@ function ManagerDashboard({ signedInUser }) {
         {view === 'dashboard-view' && <DashboardView reports={reports} />}
         {view === 'reports-view' && <ReportsView reports={reports} users={users} onOpenReport={setActiveReport} />}
         {view === 'officers-view' && <OfficersView reports={reports} users={users} onOpenReport={setActiveReport} />}
-        {view === 'analytics-view' && <AnalyticsView />}
+        {view === 'analytics-view' && <AnalyticsView reports={reports} users={users} source={live ? 'Shared reports' : 'Demo / session preview'} />}
       </div>
       {selectedReport && <ReportModal key={`${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={users} live={live} onSave={saveReport} onClose={() => setActiveReport(null)} />}
     </div>
