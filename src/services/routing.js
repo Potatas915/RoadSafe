@@ -36,9 +36,9 @@ export function drawRoutes(map, routes) {
   const source = 'roadsafe-personnel-route'
   if (!map.getSource(source)) map.addSource(source, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   for (const [suffix, paint] of [
-    ['casing', { 'line-color': '#0b1329', 'line-width': 9 }],
-    ['line', { 'line-color': ['match', ['get', 'responderType'], 'medical', '#ef4444', '#3b82f6'], 'line-width': 5 }],
-    ['preview', { 'line-color': '#ffffff', 'line-width': 2, 'line-dasharray': [2, 2], 'line-opacity': ['case', ['get', 'isFallback'], 0.8, 0] }],
+    ['casing', { 'line-color': '#0b1329', 'line-width': 5 }],
+    ['line', { 'line-color': ['match', ['get', 'responderType'], 'medical', '#ef4444', '#3b82f6'], 'line-width': 3 }],
+    ['preview', { 'line-color': '#ffffff', 'line-width': 1.5, 'line-dasharray': [2, 2], 'line-opacity': ['case', ['get', 'isFallback'], 0.8, 0] }],
   ]) {
     const id = `${source}-${suffix}`
     if (!map.getLayer(id)) map.addLayer({ id, source, type: 'line', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint })

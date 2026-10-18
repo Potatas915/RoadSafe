@@ -966,7 +966,6 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
               key={selectedStation.id}
               station={selectedStation}
               routeInfo={routeInfo}
-              onFocusRoute={() => focusRoute(mapRef.current, routeInfo)}
               scene={scene}
               data={responders.get(selectedStation.id)}
               onStatus={(value) => responders.setStatus(selectedStation.id, value)}
