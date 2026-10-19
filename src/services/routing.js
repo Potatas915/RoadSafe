@@ -32,6 +32,39 @@ export function drawRoute(map, route, responderType = 'police') {
   drawRoutes(map, route ? [{ route, responderType }] : [])
 }
 
+// Reveal along cumulative segment lengths, including two-point fallback routes.
+export function routePrefix(coordinates, progress) {
+  if (progress >= 1) return coordinates
+  const lengths = coordinates.slice(1).map((point, i) => Math.hypot(point[0] - coordinates[i][0], point[1] - coordinates[i][1]))
+  let remaining = lengths.reduce((sum, length) => sum + length, 0) * Math.max(0, progress)
+  const result = [coordinates[0]]
+  for (let i = 0; i < lengths.length; i++) {
+    if (remaining >= lengths[i]) { result.push(coordinates[i + 1]); remaining -= lengths[i]; continue }
+    const t = lengths[i] ? remaining / lengths[i] : 0
+    result.push(coordinates[i].map((value, axis) => value + (coordinates[i + 1][axis] - value) * t))
+    break
+  }
+  return result.length > 1 ? result : [coordinates[0], coordinates[0]]
+}
+
+const displayedRoutes = new WeakMap()
+export function animateRoutes(map, routes) {
+  const previous = displayedRoutes.get(map) ?? new Set()
+  displayedRoutes.set(map, new Set(routes.map(entry => entry.route)))
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { drawRoutes(map, routes); return }
+  let frame, start
+  const tick = (now) => {
+    start ??= now
+    const progress = Math.min(1, (now - start) / 850)
+    drawRoutes(map, routes.map(entry => previous.has(entry.route) ? entry : {
+      ...entry, route: { ...entry.route, geometry: { ...entry.route.geometry, coordinates: routePrefix(entry.route.geometry.coordinates, progress) } },
+    }))
+    if (progress < 1) frame = requestAnimationFrame(tick)
+  }
+  frame = requestAnimationFrame(tick)
+  return () => cancelAnimationFrame(frame)
+}
+
 export function drawRoutes(map, routes) {
   const source = 'roadsafe-personnel-route'
   if (!map.getSource(source)) map.addSource(source, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })

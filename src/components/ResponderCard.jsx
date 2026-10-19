@@ -51,8 +51,12 @@ export default function ResponderCard({
   routeInfo,
   onRelease,
   onClose,
+  selectedPersonnel,
+  onPersonnelChange,
 }) {
-  const [personnel, setPersonnel] = useState(1)
+  const [localPersonnel, setLocalPersonnel] = useState(1)
+  const personnel = selectedPersonnel ?? localPersonnel
+  const setPersonnel = onPersonnelChange ?? setLocalPersonnel
   const [note, setNote] = useState('')
   const [showDetails, setShowDetails] = useState(false)
   if (!station) return null

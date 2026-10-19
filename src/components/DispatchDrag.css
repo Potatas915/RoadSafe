@@ -1,0 +1,19 @@
+.dispatch-overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:5;color:#67e8f9}
+.dispatch-message{position:absolute;bottom:34px;left:50%;transform:translateX(-50%);max-width:90%;padding:7px 12px;border:1px solid #22d3ee60;border-radius:5px;background:#061725ed;font:10px ui-monospace,monospace;text-align:center}
+.dispatch-trail{position:absolute;width:100%;height:100%;overflow:visible}
+.dispatch-trail path{fill:none;stroke:#22d3ee;stroke-width:1.5;stroke-dasharray:3 9;filter:drop-shadow(0 0 4px #06b6d4);opacity:0;transition:opacity .25s}
+.dispatch-hud{position:absolute;top:0;left:0;opacity:0;transition:opacity .25s;will-change:transform}
+.dispatch-hud[data-active=true]{opacity:1}
+.dispatch-reticle{position:absolute;width:100px;height:100px;left:-50px;top:-50px;filter:drop-shadow(0 0 3px #0891b260)}
+.dispatch-orbit{position:absolute;inset:4px;border:1.5px solid #c5a65cbb;border-radius:50%;mask:repeating-conic-gradient(#000 0deg 43deg,transparent 43deg 60deg);animation:dispatch-spin 12s linear infinite}
+.dispatch-orbit.inner{inset:8px;border-width:1px;border-color:#c5a65c70;mask:repeating-conic-gradient(#000 0deg 17deg,transparent 17deg 90deg);animation-direction:reverse;animation-duration:18s}
+.dispatch-pulse{position:absolute;inset:46px;border:1px solid #22d3ee;border-radius:50%;box-shadow:0 0 4px #22d3ee80;animation:dispatch-pulse 2s ease-out infinite}
+.dispatch-cross{position:absolute;inset:12px;background:linear-gradient(#6479c780,#6479c780) center/1px 100% no-repeat,linear-gradient(#6479c780,#6479c780) center/100% 1px no-repeat;mask:radial-gradient(circle,transparent 0 9px,#000 10px)}
+.dispatch-reticle span,.dispatch-reticle small{position:absolute;white-space:nowrap;font:9px ui-monospace,monospace;letter-spacing:1.5px;left:50%;transform:translateX(-50%);top:109px;text-shadow:0 1px 4px #020617;background:#061725c9;padding:4px 7px;border-left:1px solid #22d3ee}
+.dispatch-reticle small{top:-26px;font-size:8px}
+.dispatch-hud[data-locked=true] .dispatch-orbit{border-color:#67e8f9}
+.dispatch-lock{position:absolute;top:0;left:0;opacity:0;transition:opacity .2s}
+.dispatch-lock i{position:absolute;inset:-29px;border:2px solid #a5f3fc;border-radius:9px;box-shadow:0 0 14px #22d3ee80,inset 0 0 12px #22d3ee40}
+@keyframes dispatch-spin{to{transform:rotate(360deg)}}
+@keyframes dispatch-pulse{from{transform:scale(.7);opacity:.8}to{transform:scale(1.45);opacity:0}}
+@media(prefers-reduced-motion:reduce){.dispatch-orbit,.dispatch-pulse{animation:none}.dispatch-hud,.dispatch-lock,.dispatch-trail path{transition:none}}

@@ -23,7 +23,8 @@ import useMedicalStations from "../hooks/useMedicalStations.js";
 import useRadiusArea from "../hooks/useRadiusArea.js";
 
 import useResponderState from "../hooks/useResponderState.js";
-import { previewRoute, fetchRoute, drawRoutes, focusRoute } from "../services/routing.js";
+import { previewRoute, fetchRoute, focusRoute, animateRoutes } from "../services/routing.js";
+import DispatchDrag from "./DispatchDrag.jsx";
 import { nearbyStreetFeatures } from "../services/affectedStreets.js";
 import ResponderCard from "./ResponderCard.jsx";
 import MapReportCard from "./MapReportCard.jsx";
@@ -329,6 +330,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const [mapReady, setMapReady] = useState(false);
   const [radiusKm, setRadiusKm] = useState(2.5);
   const [selectedStation, setSelectedStation] = useState(null);
+  const [personnelByStation, setPersonnelByStation] = useState({});
   const responders = useResponderState(selectedStation);
   const [routes, setRoutes] = useState({});
   const routeCache = useRef(new Map());
@@ -358,7 +360,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     return () => controller.abort();
   }, [mapReady, activeRequests]);
   useEffect(() => {
-    if (mapReady && mapRef.current) drawRoutes(mapRef.current, Object.values(routes));
+    if (mapReady && mapRef.current) return animateRoutes(mapRef.current, Object.values(routes));
   }, [mapReady, routes]);
   useEffect(() => {
     if (!routeInfo) return;
@@ -983,6 +985,18 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             <span>Severity</span>{[["Low", "#86efac"], ["Medium", "#facc15"], ["High", "#fb923c"], ["Critical", "#fb7185"], ["Unknown", "#94a3b8"]].map(([label, color]) => <span key={label} className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />{label}</span>)}
           </div>
           <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+          <DispatchDrag mapRef={mapRef} ready={mapReady}
+            getPersonnel={(station) => personnelByStation[station.id] ?? 1}
+            canDispatch={(station) => !responders.get(station.id).request}
+            onDispatch={(station, feature) => {
+              setSelectedReportId(feature.properties.id);
+              setSelectedStation(station);
+              responders.requestAssistance(station.id, {
+                reportId: feature.properties.id,
+                label: feature.properties.reportType || 'Incident',
+                coordinates: feature.geometry.coordinates,
+              }, { personnel: personnelByStation[station.id] ?? 1, note: '' }, station);
+            }} />
           {selectedRecord && !selectedStation && <MapReportCard
             report={selectedRecord}
             onClose={() => setSelectedReportId(null)}
@@ -993,6 +1007,8 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             <ResponderCard
               key={selectedStation.id}
               station={selectedStation}
+              selectedPersonnel={personnelByStation[selectedStation.id] ?? 1}
+              onPersonnelChange={(count) => setPersonnelByStation(previous => ({ ...previous, [selectedStation.id]: count }))}
               routeInfo={routeInfo}
               scene={scene}
               data={responders.get(selectedStation.id)}
