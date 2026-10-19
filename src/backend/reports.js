@@ -30,3 +30,10 @@ export async function saveReportDuplicate(client, report, originalId, reason) {
   })
   if (error) throw error
 }
+
+export async function saveReportCorrection(client, report, values, reason) {
+  const { error } = await client.rpc('correct_accident_report', {
+    p_id: report.id, p_values: values, p_reason: reason.trim(), p_version: report.version,
+  })
+  if (error) throw error
+}

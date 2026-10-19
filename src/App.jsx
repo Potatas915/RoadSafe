@@ -10,7 +10,7 @@ import ReportModal from './components/ReportModal.jsx'
 import { reportsResponse } from './data/reports.js'
 import { parseReportsResponse, reportSummary, ROLES, updateReport } from './models/report.js'
 import { backend } from './backend/client.js'
-import { loadReportFeed, saveReportReview, saveReportDuplicate } from './backend/reports.js'
+import { loadReportFeed, saveReportReview, saveReportDuplicate, saveReportCorrection } from './backend/reports.js'
 import { applyDuplicateReview } from './models/reportDuplicates.js'
 import ManagerAuth from './backend/ManagerAuth.jsx'
 import useNotifications from './hooks/useNotifications.js'
@@ -123,6 +123,13 @@ function ManagerDashboard({ signedInUser }) {
     }
     setActiveReport(null)
   }
+  async function correctReport(id, values, reason) {
+    const current = reports.find(report => report.id === id)
+    if (!current) throw new Error('Report no longer exists.')
+    await saveReportCorrection(backend, current, values, reason)
+    await refresh()
+    setActiveReport(null)
+  }
   async function saveDuplicate(id, originalId, reason) {
     const actor = previewing ? demoResponse.included.users.find(user => user.role === ROLES.ADMIN) : currentUser
     const current = displayed.data.find(report => report.id === id)
@@ -161,7 +168,7 @@ function ManagerDashboard({ signedInUser }) {
         {view === 'officers-view' && <OfficersView reports={reports} users={users} onOpenReport={setActiveReport} />}
         {view === 'analytics-view' && <AnalyticsView reports={reports} users={users} source={live ? 'Shared reports' : 'Demo / session preview'} />}
       </div>
-      {selectedReport && <ReportModal key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} />}
+      {selectedReport && <ReportModal key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} />}
     </div></CategoryContext.Provider>
   )
 }
