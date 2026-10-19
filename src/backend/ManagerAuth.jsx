@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { backend } from './client.js'
 import { loginIdentity } from './username.js'
+import { canUseManager } from '../models/staffAccess.js'
 
 export default function ManagerAuth({ children }) {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [allowed, setAllowed] = useState(false)
+  const [role, setRole] = useState(null)
+  const [enabled, setEnabled] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -13,13 +16,16 @@ export default function ManagerAuth({ children }) {
   useEffect(() => {
     let active = true
     let generation = 0
-    async function apply(next) {
+    async function apply(next, initial = true) {
       const current = ++generation
-      setLoading(true)
+      if (initial) setLoading(true)
       if (next) {
-        const result = await backend.from('user_roles').select('role').eq('user_id', next.user.id).single()
+        const result = await backend.from('user_roles').select('role,enabled,version').eq('user_id', next.user.id).single()
         if (!active || current !== generation) return
-        setAllowed(!result.error && result.data?.role === 'Admin')
+        setAllowed(!result.error && canUseManager(result.data))
+        setRole(result.data?.role ?? null)
+        setEnabled(result.data?.enabled !== false)
+        setError(result.error ? 'Could not confirm current staff access. Retry sign-in or refresh.' : '')
       } else setAllowed(false)
       if (active && current === generation) { setSession(next); setLoading(false) }
     }
@@ -31,7 +37,14 @@ export default function ManagerAuth({ children }) {
       // Keep database queries outside the auth callback's internal lock.
       setTimeout(() => { if (active) void apply(next) }, 0)
     })
-    return () => { active = false; data.subscription.unsubscribe() }
+    const timer = setInterval(() => {
+      backend.auth.getSession().then(({ data, error }) => {
+        if (!active) return
+        if (error) { setAllowed(false); setError('Could not confirm the session. Sign in again.'); return }
+        void apply(data.session, false)
+      })
+    }, 15000)
+    return () => { active = false; clearInterval(timer); data.subscription.unsubscribe() }
   }, [])
   async function signIn(event) {
     event.preventDefault(); setBusy(true); setError('')
@@ -42,12 +55,12 @@ export default function ManagerAuth({ children }) {
     finally { setBusy(false) }
   }
   if (loading) return <main className="min-h-screen bg-darkBg text-slate-200 grid place-items-center">Loading your account…</main>
-  if (session && allowed) return children(session.user)
+  if (session && allowed) return children({ ...session.user, appRole: role })
   return <main className="min-h-screen bg-darkBg text-slate-100 grid place-items-center p-6">
     <section className="w-full max-w-md bg-darkCard border border-darkBorder rounded-2xl p-8 space-y-5">
       <h1 className="text-2xl font-bold">RoadSafe Manager</h1>
       {session ? <>
-        <p>This account is not an administrator. Use the mobile app to report and track accidents. Staff access must be granted by an authorized project administrator.</p>
+        <p>{!enabled ? 'This account is suspended. Contact an administrator.' : 'This account does not have active staff access. Public accounts can use the mobile app to report and track accidents. An Admin manages staff access.'}</p>
         <button onClick={() => backend.auth.signOut()} className="bg-orange-600 rounded-xl px-4 py-3">Sign out</button>
       </> : <form onSubmit={signIn} className="space-y-4">
         <p className="text-slate-400 text-sm">Sign in to review reports and coordinate response.</p>

@@ -114,9 +114,10 @@ export function parseReportsResponse(response) {
     if (errors.length) throw new Error(`${report?.id ?? 'Report'}: ${errors.join(' ')}`)
     if (reportIds.has(report.id)) throw new Error('Duplicate report ID.')
     reportIds.add(report.id)
-    if (report.reporter.userId && !users.some((u) => u.id === report.reporter.userId && u.role === ROLES.PUBLIC)) throw new Error('Unknown public reporter.')
+    // Historical authors/verifiers keep their identity when their current role changes.
+    if (report.reporter.userId && !users.some((u) => u.id === report.reporter.userId)) throw new Error('Unknown reporter.')
     if (report.assignedOfficerId && !users.some((u) => u.id === report.assignedOfficerId && u.role === ROLES.OFFICER)) throw new Error('Unknown assigned officer.')
-    if (report.verification.verifiedBy && !users.some((u) => u.id === report.verification.verifiedBy && [ROLES.ADMIN, ROLES.OFFICER].includes(u.role))) throw new Error('Unknown authorized verifier.')
+    if (report.verification.verifiedBy && !users.some((u) => u.id === report.verification.verifiedBy)) throw new Error('Unknown verifier.')
   }
   return response
 }

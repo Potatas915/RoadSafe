@@ -4,13 +4,14 @@ const items = [
   { id: 'reports-view', label: 'Report Management', icon: 'fa-triangle-exclamation', badge: true },
   { id: 'officers-view', label: 'Officer Dispatch', icon: 'fa-user-shield' },
   { id: 'analytics-view', label: 'Analytics & Exports', icon: 'fa-chart-line' },
+  { id: 'accounts-view', label: 'Account Management', icon: 'fa-users-gear' },
 ]
 
 const base = 'w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition'
 const active = `${base} bg-orange-500/10 text-brandOrange border border-orange-500/20`
 const idle = `${base} text-slate-400 hover:bg-slate-800/60 hover:text-slate-200`
 
-export default function Sidebar({ view, onChange, pendingCount, currentUser }) {
+export default function Sidebar({ view, onChange, pendingCount, currentUser, live = false }) {
   return (
     <aside className="w-64 bg-darkCard border-r border-darkBorder flex flex-col justify-between z-30 shadow-2xl">
       <div>
@@ -25,7 +26,7 @@ export default function Sidebar({ view, onChange, pendingCount, currentUser }) {
         </div>
 
         <nav className="p-4 space-y-1.5 text-sm font-medium">
-          {items.map((item) => (
+          {items.filter(item => item.id !== 'accounts-view' || live).map((item) => (
             <button key={item.id} onClick={() => onChange(item.id)} className={view === item.id ? active : idle}>
               <i className={`fa-solid ${item.icon} w-5`}></i> {item.label}
               {item.badge && (

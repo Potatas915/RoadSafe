@@ -1,16 +1,19 @@
 import { useCategoryLabel, useCategories } from './CategoryContext.js'
 import { canCorrectReport, correctionDraft, correctionValues, VEHICLE_TYPES } from '../models/reportCorrections.js'
+import { officerStatuses } from '../models/staffAccess.js'
 import { useEffect, useRef, useState } from 'react'
 import { REPORT_STATUSES, REPORT_STATUS, ROLES, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
 import { DUPLICATE_REVIEW_STATUSES, duplicateOriginals } from '../models/reportDuplicates.js'
 
-export default function ReportModal({ report, users, onSave, onClose, live = false, reports = [], onDuplicate, onOpenOriginal, onCorrect }) {
+export default function ReportModal({ report, users, onSave, onClose, live = false, reports = [], onDuplicate, onOpenOriginal, onCorrect, actorRole = ROLES.ADMIN, viewerId }) {
   const categoryLabel = useCategoryLabel()
   const categories = useCategories()
   const [facts, setFacts] = useState(() => correctionDraft(report))
   const [correctionReason, setCorrectionReason] = useState('')
 
-  const [status, setStatus] = useState(report.status)
+  const officer = actorRole === ROLES.OFFICER
+  const statusChoices = officer ? officerStatuses(report, viewerId) : report.isDuplicate ? [REPORT_STATUS.REJECTED] : REPORT_STATUSES
+  const [status, setStatus] = useState(officer ? statusChoices[0] ?? report.status : report.status)
   const [assignedOfficerId, setOfficer] = useState(report.assignedOfficerId ?? '')
   const [officialRemarks, setRemarks] = useState(report.officialRemarks)
   const [rejectionReason, setReason] = useState(report.rejectionReason ?? '')
@@ -100,8 +103,8 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
             </details> : <p className="text-slate-400">Return active cases to Under Review before correcting facts. Closed, rejected and duplicate reports are locked.</p>}
           </section>}
           <div className="space-y-3 border-t border-darkBorder pt-4">
-            <label className="block">Report status<select aria-label="Report status" className={control} value={status} onChange={(e) => setStatus(e.target.value)}>{(report.isDuplicate ? [REPORT_STATUS.REJECTED] : REPORT_STATUSES).map((value) => <option key={value}>{value}</option>)}</select></label>
-            <label className="block">Assigned officer<select aria-label="Assign officer" className={control} value={assignedOfficerId} onChange={(e) => setOfficer(e.target.value)}><option value="">Unassigned</option>{users.filter((u) => u.role === ROLES.OFFICER).map((u) => <option key={u.id} value={u.id}>{u.name} ({u.unit})</option>)}</select></label>
+            <label className="block">{officer && statusChoices[0] === 'Verified' ? 'Verification decision' : 'Report status'}<select aria-label="Report status" className={control} value={status} onChange={(e) => setStatus(e.target.value)}>{statusChoices.map((value) => <option key={value}>{value}</option>)}</select></label>
+            {!officer && <label className="block">Assigned officer<select aria-label="Assign officer" className={control} value={assignedOfficerId} onChange={(e) => setOfficer(e.target.value)}><option value="">Unassigned</option>{users.filter((u) => u.role === ROLES.OFFICER && u.enabled !== false).map((u) => <option key={u.id} value={u.id}>{u.name} ({u.unit})</option>)}</select></label>}
             <label className="block">Official remarks<textarea className={control} value={officialRemarks} onChange={(e) => setRemarks(e.target.value)} /></label>
             {status === REPORT_STATUS.REJECTED && <label className="block">Rejection reason (required)<textarea required className={control} value={rejectionReason} onChange={(e) => setReason(e.target.value)} /></label>}
           </div>
@@ -115,23 +118,23 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
             <button type="button" disabled={saving} onClick={() => duplicateAction()} className="px-3 py-2 bg-amber-800 rounded-lg disabled:opacity-50">Mark as duplicate</button>
           </section>}
           <p className="text-amber-300">{live ? "Changes are saved to the shared backend with your account and timestamp. Assignments are recorded; external dispatch messages are not sent." : "Session preview only. Saving does not dispatch responders or update a server. Selecting a verified workflow status records demo verification."}</p>
-          <ReportHistory events={report.events} />
+          <ReportHistory events={report.events} redacted={officer} />
           {error && <p role="alert" className="text-red-300">{error}</p>}
         </div>
-        <footer className="p-4 border-t border-darkBorder flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 rounded-xl">Cancel</button><button type="submit" disabled={saving} className="px-4 py-2 bg-orange-600 rounded-xl disabled:opacity-50">{saving ? "Saving…" : live ? "Save changes" : "Save session changes"}</button></footer>
+        <footer className="p-4 border-t border-darkBorder flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 rounded-xl">Cancel</button><button type="submit" disabled={saving || officer && !statusChoices.length} className="px-4 py-2 bg-orange-600 rounded-xl disabled:opacity-50">{saving ? "Saving…" : officer && statusChoices[0] === 'Verified' ? 'Verify report' : live ? "Save changes" : "Save session changes"}</button></footer>
       </form>
     </dialog>
   )
 }
 
 
-export function ReportHistory({ events = [] }) {
+export function ReportHistory({ events = [], redacted = false }) {
   if (!events.length) return null
   return <section><h3 className="text-slate-400 mb-2">Report history and clarification</h3>
     <ul className="space-y-2">{events.map(event => <li key={event.id}>
       <span className="text-orange-300">{event.type === 'facts_corrected' ? 'Incident facts corrected' : event.type === 'duplicate_marked' ? 'Marked as duplicate' : event.type === 'duplicate_cleared' ? 'Duplicate flag cleared' : event.status ?? event.type}</span>
       {' · '}{formatDateTime(event.createdAt)}
-      <p>Actor: {event.actor?.name || 'Unavailable (historical or demo event)'}{event.actor?.id && <span> · {event.actor.id}</span>}</p>
+      <p>Actor: {event.actor?.name || (redacted ? 'Not included in Officer view' : 'Unavailable (historical or demo event)')}{event.actor?.id && <span> · {event.actor.id}</span>}</p>
       {event.fromStatus && event.status && event.fromStatus !== event.status && <p>{event.fromStatus} → {event.status}</p>}
       {event.relatedReportId && <p>Original report: {event.relatedReportId}</p>}
       {event.message && <p>{event.message}</p>}

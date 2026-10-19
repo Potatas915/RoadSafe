@@ -1,3 +1,5 @@
+import AccountsView from './components/AccountsView.jsx'
+import OfficerWorkspace from './components/OfficerWorkspace.jsx'
 import { useCallback, useEffect, useState } from 'react'
 import Sidebar from './components/Sidebar.jsx'
 import TopBar from './components/TopBar.jsx'
@@ -21,7 +23,7 @@ import SettingsView from './components/SettingsView.jsx'
 
 export default function App() {
   return backend
-    ? <ManagerAuth>{(user) => <ManagerDashboard key={user.id} signedInUser={user} />}</ManagerAuth>
+    ? <ManagerAuth>{(user) => user.appRole === ROLES.OFFICER ? <OfficerDashboard key={`${user.id}:Officer`} signedInUser={user} /> : <ManagerDashboard key={`${user.id}:Admin`} signedInUser={user} />}</ManagerAuth>
     : <ManagerDashboard />
 }
 
@@ -148,7 +150,7 @@ function ManagerDashboard({ signedInUser }) {
   }
   return (
     <CategoryContext.Provider value={categories}><div data-tactical={view === 'map-view'} className="roadsafe-shell bg-darkBg text-slate-100 font-sans antialiased h-screen flex overflow-hidden">
-      <Sidebar view={view} onChange={setView} pendingCount={reportSummary(reports).pending} currentUser={currentUser} />
+      <Sidebar view={view} onChange={setView} pendingCount={reportSummary(reports).pending} currentUser={currentUser} live={live} />
       <div className="flex-1 flex flex-col relative overflow-hidden bg-darkBg min-w-0">
         <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={live ? () => backend.auth.signOut() : undefined} live={live} notifications={notifications} unreadCount={unreadCount} onReadNotifications={markRead} notificationStorageWarning={storageWarning} onOpenNotificationReport={(id) => { setDemoPreview(false); setView('reports-view'); setActiveReport(id) }} />
         <p className="sr-only" role="status">{source}</p>
@@ -166,10 +168,49 @@ function ManagerDashboard({ signedInUser }) {
         {view === 'dashboard-view' && <DashboardView reports={displayed.data} onOpenReport={setActiveReport} />}
         {view === 'reports-view' && <ReportsView reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} />}
         {view === 'officers-view' && <OfficersView reports={reports} users={users} onOpenReport={setActiveReport} />}
+        {view === 'accounts-view' && live && <AccountsView client={backend} currentUserId={signedInUser?.id} />}
         {view === 'analytics-view' && <AnalyticsView reports={reports} users={users} source={live ? 'Shared reports' : 'Demo / session preview'} />}
       </div>
       {selectedReport && <ReportModal key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} />}
     </div></CategoryContext.Provider>
   )
+}
+
+function OfficerDashboard({ signedInUser }) {
+  const [response, setResponse] = useState({ data: [], included: { users: [] } })
+  const [categories, setCategories] = useState(ACCIDENT_CATEGORIES)
+  const [activeReport, setActiveReport] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
+  useEffect(() => {
+    let cancelled = false, inFlight = false
+    async function reload() {
+      if (inFlight) return
+      inFlight = true
+      try {
+        const [next, catalog] = await Promise.all([loadReportFeed(backend), loadCategories(backend)])
+        if (!cancelled) { setResponse(next); setCategories(catalog); setError('') }
+      } catch (failure) { if (!cancelled) setError(`Could not refresh reports: ${failure.message}. Last loaded data may be out of date.`) }
+      finally { inFlight = false; if (!cancelled) setLoading(false) }
+    }
+    void reload()
+    const timer = setInterval(reload, 15000)
+    window.addEventListener('focus', reload)
+    return () => { cancelled = true; clearInterval(timer); window.removeEventListener('focus', reload) }
+  }, [refreshKey])
+  async function save(id, patch) {
+    const report = response.data.find(row => row.id === id)
+    if (!report) throw new Error('This report is no longer available. Refresh your queue.')
+    await saveReportReview(backend, report, patch)
+    setActiveReport(null)
+    setRefreshKey(key => key + 1)
+  }
+  const currentUser = response.included.users.find(user => user.id === signedInUser.id) ?? { id: signedInUser.id, name: 'Officer', unit: '' }
+  const selected = response.data.find(report => report.id === activeReport)
+  return <CategoryContext.Provider value={categories}>
+    <OfficerWorkspace reports={response.data} currentUser={currentUser} onOpenReport={setActiveReport} onSignOut={() => backend.auth.signOut()} error={error} loading={loading} onRefresh={() => setRefreshKey(key => key + 1)} />
+    {selected && <ReportModal key={`${selected.id}:${selected.version}`} report={selected} users={response.included.users} actorRole={ROLES.OFFICER} viewerId={signedInUser.id} live onSave={save} onClose={() => setActiveReport(null)} />}
+  </CategoryContext.Provider>
 }
 
