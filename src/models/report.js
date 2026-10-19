@@ -20,7 +20,7 @@ export const INJURY_STATUSES = Object.freeze(['unknown', 'none', 'injured', 'fat
 export const VERIFIED_STATUSES = Object.freeze([
   REPORT_STATUS.VERIFIED, REPORT_STATUS.ASSIGNED, REPORT_STATUS.IN_PROGRESS, REPORT_STATUS.CLOSED,
 ])
-export const categoryLabel = (id) => ACCIDENT_CATEGORIES.find((c) => c.id === id)?.label ?? id
+export const categoryLabel = (id, categories = ACCIDENT_CATEGORIES) => categories.find((c) => c.id === id)?.label ?? id
 export const isOfficiallyVerified = (report) => Boolean(report.verification.verifiedAt && report.verification.verifiedBy)
 export const officerName = (users, id) => users.find((user) => user.id === id)?.name ?? 'Unassigned'
 export const formatDateTime = (value) => new Intl.DateTimeFormat('en-PH', {

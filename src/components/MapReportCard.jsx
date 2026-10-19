@@ -1,4 +1,5 @@
-import { ACCIDENT_CATEGORIES, formatDateTime } from '../models/report.js'
+import { useCategories } from './CategoryContext.js'
+import { formatDateTime } from '../models/report.js'
 import { caseSeverity, reportedVehicles } from '../models/caseSeverity.js'
 import { ACCIDENT_ICON_PATHS } from '../models/accidentIcons.js'
 
@@ -6,6 +7,8 @@ const label = 'text-slate-400 block text-[10px] uppercase font-semibold'
 const box = 'bg-darkBg p-2.5 rounded-xl border border-darkBorder space-y-1'
 
 export default function MapReportCard({ report, onClose, onZoom, onOpenReport }) {
+  const ACCIDENT_CATEGORIES = useCategories()
+
   if (!report) return null
   const category = ACCIDENT_CATEGORIES.find((item) => item.id === report.categoryId)
   const coordinates = report.location.coordinates

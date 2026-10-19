@@ -1,8 +1,12 @@
+import { useCategories, useCategoryLabel } from './CategoryContext.js'
 import { useState } from 'react'
-import { ACCIDENT_CATEGORIES, REPORT_STATUSES, categoryLabel, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
+import { REPORT_STATUSES, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
 import { DATE_BASES, dateRangeError, filterReportsByDate } from '../services/reportExport.js'
 
 export default function ReportsView({ reports, users, onOpenReport }) {
+  const ACCIDENT_CATEGORIES = useCategories()
+  const categoryLabel = useCategoryLabel()
+
   const [status, setStatus] = useState('')
   const [category, setCategory] = useState('')
   const [query, setQuery] = useState('')

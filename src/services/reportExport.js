@@ -87,8 +87,8 @@ export function groupReportPeriods(reports, range = {}, groupBy = 'day', dateFie
   return rows
 }
 
-export function exportRows(reports, users = []) {
-  return reports.map((r) => [r.id, formatDateTime(r.occurredAt), formatDateTime(r.submittedAt), categoryLabel(r.categoryId), r.status,
+export function exportRows(reports, users = [], categories = ACCIDENT_CATEGORIES) {
+  return reports.map((r) => [r.id, formatDateTime(r.occurredAt), formatDateTime(r.submittedAt), categoryLabel(r.categoryId, categories), r.status,
     r.location.address ?? '', r.location.coordinates?.latitude ?? '', r.location.coordinates?.longitude ?? '', r.description,
     r.injuries.status, r.injuries.injuredCount ?? 'Unknown', r.injuries.fatalityCount ?? 'Unknown',
     users.find((u) => u.id === r.assignedOfficerId)?.name ?? 'Unassigned', r.officialRemarks])
@@ -103,8 +103,8 @@ function csvDocument(rows) {
   }
   return '\uFEFF' + rows.map((row) => row.map(cell).join(',')).join('\r\n') + '\r\n'
 }
-export function createCsv(reports, users) {
-  return csvDocument([exportHeaders, ...exportRows(reports, users)])
+export function createCsv(reports, users, categories = ACCIDENT_CATEGORIES) {
+  return csvDocument([exportHeaders, ...exportRows(reports, users, categories)])
 }
 export function createSummaryCsv(reports, { range, groupBy = 'day', dateField = 'occurredAt', source = '' }) {
   const rows = groupReportPeriods(reports, range, groupBy, dateField)
@@ -114,7 +114,7 @@ export function createSummaryCsv(reports, { range, groupBy = 'day', dateField = 
   ])
 }
 
-export async function createPdf(reports, users, { period, source, fontBase64, range, groupBy, dateField = 'occurredAt' }) {
+export async function createPdf(reports, users, { period, source, fontBase64, range, groupBy, dateField = 'occurredAt', categories = ACCIDENT_CATEGORIES }) {
   if (range) reports = filterExportReports(reports, range, dateField)
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
@@ -147,7 +147,7 @@ export async function createPdf(reports, users, { period, source, fontBase64, ra
   line('By status', 12)
   for (const status of REPORT_STATUSES) line(`${status}: ${reports.filter((r) => r.status === status).length}`)
   line('By category', 12)
-  for (const category of ACCIDENT_CATEGORIES) line(`${category.label}: ${reports.filter((r) => r.categoryId === category.id).length}`)
+  for (const category of categories) line(`${category.label}: ${reports.filter((r) => r.categoryId === category.id).length}`)
   if (groupBy) {
     line(`${PERIOD_GROUPS[groupBy]} period summary`, 12)
     line('Weeks: Monday-Sunday. Boundary periods show only selected dates. Verified includes closed reports.', 9)
@@ -157,7 +157,7 @@ export async function createPdf(reports, users, { period, source, fontBase64, ra
   }
   line('Report records', 12)
   if (!reports.length) line('No reports match this timeframe.')
-  for (const row of exportRows(reports, users)) {
+  for (const row of exportRows(reports, users, categories)) {
     y += 5
     if (y > 240) { doc.addPage(); y = 20 }
     line(row[0], 12)

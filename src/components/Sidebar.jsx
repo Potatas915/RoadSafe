@@ -48,7 +48,7 @@ export default function Sidebar({ view, onChange, pendingCount, currentUser }) {
             <p className="text-[10px] text-slate-400">{currentUser?.role ?? 'Unassigned role'}</p>
           </div>
         </div>
-        <button title="System Settings" aria-label="System Settings" className="text-slate-400 hover:text-white transition">
+        <button title="System Settings" aria-label="System Settings" onClick={() => onChange('settings-view')} className="text-slate-400 hover:text-white transition">
           <i className="fa-solid fa-gear"></i>
         </button>
       </div>

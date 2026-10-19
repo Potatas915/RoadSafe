@@ -1,3 +1,4 @@
+import { useCategories } from './CategoryContext.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Map as MapLibreMap,
@@ -49,7 +50,6 @@ const COLORS = {
   labels: "#aeb3bb",
 };
 
-const REPORT_TYPES = ACCIDENT_CATEGORIES;
 const CASE_COLOR = ["coalesce", ["get", "caseColor"], "#94a3b8"];
 const REPORT_COLOR = ["match", ["get", "reportType"],
   ...ACCIDENT_CATEGORIES.filter((c) => c.id !== "other").flatMap((c) => [c.id, c.color]),
@@ -305,6 +305,7 @@ function filterReports(reports, selectedTypes, includePending, selectedStatus) {
 }
 
 export default function MapView({ searchLocation, reportRecords, users, onOpenReport }) {
+  const REPORT_TYPES = useCategories();
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const [selectedTypes, setSelectedTypes] = useState(

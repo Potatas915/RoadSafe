@@ -1,8 +1,10 @@
+import { useCategories } from './CategoryContext.js'
 import { useState } from 'react'
 import { reportSummary } from '../models/report.js'
 import { DATE_BASES, PERIOD_GROUPS, dateRangeError, timeframeRange, filterExportReports, groupReportPeriods, createSummaryCsv, createCsv, createPdf, downloadExport } from '../services/reportExport.js'
 
 export default function AnalyticsView({ reports = [], users = [], source = 'Demo / session preview' }) {
+  const categories = useCategories()
   const [timeframe, setTimeframe] = useState('month')
   const [custom, setCustom] = useState({ start: '', end: '' })
   const [dateField, setDateField] = useState('occurredAt')
@@ -21,9 +23,9 @@ export default function AnalyticsView({ reports = [], users = [], source = 'Demo
     if (busy || error) return
     setBusy(true); setMessage('')
     try {
-      const options = { period, source, range, groupBy, dateField }
+      const options = { period, source, range, groupBy, dateField, categories }
       const blob = kind === 'pdf' ? await createPdf(selected, users, options)
-        : new Blob([kind === 'summary' ? createSummaryCsv(selected, options) : createCsv(selected, users)], { type: 'text/csv;charset=utf-8' })
+        : new Blob([kind === 'summary' ? createSummaryCsv(selected, options) : createCsv(selected, users, categories)], { type: 'text/csv;charset=utf-8' })
       const extension = kind === 'pdf' ? 'pdf' : 'csv'
       downloadExport(blob, `roadsafe-${dateField}-${timeframe === 'all' ? 'all-time' : `${range.start}_${range.end}`}-${kind === 'summary' ? `${groupBy}-summary` : 'reports'}.${extension}`)
       setMessage(`${kind === 'summary' ? 'Summary CSV' : extension.toUpperCase()} download started for ${selected.length} reports.`)

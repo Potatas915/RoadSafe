@@ -1,8 +1,11 @@
+import { useCategoryLabel } from './CategoryContext.js'
 import { useEffect, useRef, useState } from 'react'
-import { REPORT_STATUSES, REPORT_STATUS, ROLES, categoryLabel, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
+import { REPORT_STATUSES, REPORT_STATUS, ROLES, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
 import { DUPLICATE_REVIEW_STATUSES, duplicateOriginals } from '../models/reportDuplicates.js'
 
 export default function ReportModal({ report, users, onSave, onClose, live = false, reports = [], onDuplicate, onOpenOriginal }) {
+  const categoryLabel = useCategoryLabel()
+
   const [status, setStatus] = useState(report.status)
   const [assignedOfficerId, setOfficer] = useState(report.assignedOfficerId ?? '')
   const [officialRemarks, setRemarks] = useState(report.officialRemarks)

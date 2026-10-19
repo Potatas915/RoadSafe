@@ -1,6 +1,7 @@
+import { useCategories } from './CategoryContext.js'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend } from 'chart.js'
 import { Line, Doughnut } from 'react-chartjs-2'
-import { ACCIDENT_CATEGORIES, REPORT_STATUSES, isOfficiallyVerified, reportSummary } from '../models/report.js'
+import { REPORT_STATUSES, isOfficiallyVerified, reportSummary } from '../models/report.js'
 import DashboardIncidentFeed from './DashboardIncidentFeed.jsx'
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend)
 
@@ -24,6 +25,8 @@ const gradient = (rgb) => ({ chart }) => {
 }
 
 export default function DashboardView({ reports, onOpenReport }) {
+  const ACCIDENT_CATEGORIES = useCategories()
+
   const summary = reportSummary(reports)
   const counts = new Map()
   for (const report of reports) {

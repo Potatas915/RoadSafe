@@ -14,6 +14,10 @@ import { loadReportFeed, saveReportReview, saveReportDuplicate } from './backend
 import { applyDuplicateReview } from './models/reportDuplicates.js'
 import ManagerAuth from './backend/ManagerAuth.jsx'
 import useNotifications from './hooks/useNotifications.js'
+import { ACCIDENT_CATEGORIES } from './models/report.js'
+import { loadCategories, saveCategory } from './backend/categories.js'
+import { CategoryContext } from './components/CategoryContext.js'
+import SettingsView from './components/SettingsView.jsx'
 
 export default function App() {
   return backend
@@ -23,6 +27,30 @@ export default function App() {
 
 function ManagerDashboard({ signedInUser }) {
   const live = Boolean(signedInUser)
+  const [categories, setCategories] = useState(ACCIDENT_CATEGORIES)
+  const [categoryError, setCategoryError] = useState('')
+  const refreshCategories = useCallback(async () => {
+    if (!live) return
+    try {
+      const next = await loadCategories(backend)
+      setCategories(previous => next.map(row => {
+        const current = previous.find(item => item.id === row.id)
+        return current?.version > row.version ? current : row
+      }))
+      setCategoryError('')
+    }
+    catch { setCategoryError('Could not load current category settings. Refresh to retry; displayed names may be out of date.') }
+  }, [live])
+  useEffect(() => {
+    void refreshCategories()
+    const timer = live ? setInterval(refreshCategories, 15000) : null
+    return () => clearInterval(timer)
+  }, [live, refreshCategories])
+  async function updateCategory(category, patch) {
+    if (!live) throw new Error('Administrator sign-in required.')
+    const saved = await saveCategory(backend, category, patch)
+    setCategories(previous => previous.map(row => row.id === saved.id ? { ...row, ...saved } : row))
+  }
   const [view, setView] = useState('map-view')
   const [searchLocation, setSearchLocation] = useState(null)
   const [activeReport, setActiveReport] = useState(null)
@@ -112,11 +140,13 @@ function ManagerDashboard({ signedInUser }) {
     setActiveReport(null)
   }
   return (
-    <div data-tactical={view === 'map-view'} className="roadsafe-shell bg-darkBg text-slate-100 font-sans antialiased h-screen flex overflow-hidden">
+    <CategoryContext.Provider value={categories}><div data-tactical={view === 'map-view'} className="roadsafe-shell bg-darkBg text-slate-100 font-sans antialiased h-screen flex overflow-hidden">
       <Sidebar view={view} onChange={setView} pendingCount={reportSummary(reports).pending} currentUser={currentUser} />
       <div className="flex-1 flex flex-col relative overflow-hidden bg-darkBg min-w-0">
         <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={live ? () => backend.auth.signOut() : undefined} live={live} notifications={notifications} unreadCount={unreadCount} onReadNotifications={markRead} notificationStorageWarning={storageWarning} onOpenNotificationReport={(id) => { setDemoPreview(false); setView('reports-view'); setActiveReport(id) }} />
         <p className="sr-only" role="status">{source}</p>
+        {categoryError && view !== 'settings-view' && <p role="alert" className="px-6 py-2 text-amber-300 text-xs">{categoryError}</p>}
+        {view === 'settings-view' && <SettingsView categories={categories} onSave={updateCategory} error={categoryError} onRefresh={refreshCategories} live={live} />}
         {['dashboard-view', 'reports-view'].includes(view) && <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-6 py-3 border-b border-darkBorder bg-darkCard text-xs">
           <p className={previewing ? 'text-amber-300' : 'text-slate-400'}>{previewing ? `${displayed.data.length} fictional demo reports · preview changes last for this session` : source}</p>
           <label className="flex items-center gap-2 text-slate-200">Report source
@@ -132,7 +162,7 @@ function ManagerDashboard({ signedInUser }) {
         {view === 'analytics-view' && <AnalyticsView reports={reports} users={users} source={live ? 'Shared reports' : 'Demo / session preview'} />}
       </div>
       {selectedReport && <ReportModal key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} />}
-    </div>
+    </div></CategoryContext.Provider>
   )
 }
 
