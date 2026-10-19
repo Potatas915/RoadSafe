@@ -37,7 +37,7 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
             <div><dt className="text-slate-400">Submitted (Manila)</dt><dd>{formatDateTime(report.submittedAt)}</dd></div>
             <div><dt className="text-slate-400">Location</dt><dd>{report.location.address ?? 'Confirmed map location'}</dd><dd className="text-orange-300">{coords ? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` : 'No GPS coordinates provided'}</dd></div>
             <div><dt className="text-slate-400">Accident category</dt><dd>{categoryLabel(report.categoryId)}</dd></div>
-            <div><dt className="text-slate-400">Vehicles involved</dt><dd>{report.vehicles.length ? report.vehicles.map((v) => `${v.count} × ${v.type}`).join(', ') : 'Not applicable'}</dd></div>
+            <div><dt className="text-slate-400">Vehicles involved</dt><dd>{report.vehicles.length ? report.vehicles.map((v) => `${v.count} × ${v.type}`).join(', ') : report.vehicleStatus === 'not_applicable' ? 'Not applicable' : 'Unknown'}</dd></div>
             <div><dt className="text-slate-400">Injury information</dt><dd>{report.injuries.status}</dd><dd>Injured: {report.injuries.injuredCount ?? 'Unknown'}; fatalities: {report.injuries.fatalityCount ?? 'Unknown'}</dd></div>
             <div><dt className="text-slate-400">Verification</dt><dd>{report.verification.verifiedAt ? `${officerName(users, report.verification.verifiedBy)} — ${formatDateTime(report.verification.verifiedAt)}` : 'Not verified'}</dd></div>
           </dl>

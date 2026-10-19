@@ -3,6 +3,7 @@
 // change incident severity. Missing injury data must not imply low severity.
 const categoryPoints = { collision: 15, 'hit-and-run': 20, rollover: 25, pedestrian: 25, other: 10 }
 export function reportedVehicles(report) {
+  if (report.vehicleStatus === 'not_applicable') return 0
   return report.vehicles?.length ? report.vehicles.reduce((sum, vehicle) => sum + vehicle.count, 0) : null
 }
 export function caseSeverity(report) {

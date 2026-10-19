@@ -35,7 +35,7 @@ export default function MapReportCard({ report, onClose, onZoom, onOpenReport })
       </div>
       <p className="text-[10px] text-slate-400">{formatDateTime(report.occurredAt)} · {report.verification.verifiedAt ? 'Verified' : 'Unverified'}</p>
       <details className={box}><summary className="text-slate-400 cursor-pointer">Incident description & scoring</summary><p className="text-slate-300 leading-relaxed">{report.description}</p><p className="text-[10px] text-slate-400">{severity.explanation} Rule-based index, not a probability. Map rings show a fixed 150 m nearby-street radius, not measured danger zones.</p>
-        <p>{report.vehicles.map(({ type, count }) => `${count} ${type}`).join(', ') || 'No vehicles recorded'}</p>
+        <p>{report.vehicles.map(({ type, count }) => `${count} ${type}`).join(', ') || (report.vehicleStatus === 'not_applicable' ? 'Not applicable' : 'Unknown')}</p>
         <p className="text-slate-400">Injured: {injuries.injuredCount ?? 'Unknown'} · Fatalities: {injuries.fatalityCount ?? 'Unknown'}</p>
       </details>
     </div>

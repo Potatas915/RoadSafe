@@ -142,3 +142,18 @@ test('map layer setup executes and uses valid category colors and severity stops
   vm.runInContext('addReportLayers(map);', context)
   assert.equal(layers.length, 6, 'setup does not duplicate existing report layers')
 })
+
+
+test('structured vehicle states validate and render without treating unknown as none', () => {
+  const render = report => renderToStaticMarkup(React.createElement(ReportModal, { report, users: reportsResponse.included.users }));
+  for (const [vehicleStatus, vehicles] of [['unknown', []], ['not_applicable', []], ['known', [{type:'car',count:2}]]]) {
+    const report = {...first, vehicleStatus, vehicles};
+    assert.deepEqual(validateReport(report), []);
+    assert.ok(render(report).includes(vehicleStatus === 'known' ? '2 × car' : vehicleStatus === 'unknown' ? 'Unknown' : 'Not applicable'));
+  }
+  for (const report of [{...first,vehicleStatus:'known',vehicles:[]}, {...first,vehicleStatus:'unknown',vehicles:[{type:'car',count:2}]}, {...first,vehicleStatus:'invalid'}]) {
+    assert.ok(validateReport(report).some(error => error.includes('Vehicle status')));
+  }
+  assert.ok(validateReport({...first,vehicles:[{type:'car',count:0}]}).length);
+  assert.ok(validateReport({...first,vehicles:[{type:'car',count:1.5}]}).length);
+});

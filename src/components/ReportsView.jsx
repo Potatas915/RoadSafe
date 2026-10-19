@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import { ACCIDENT_CATEGORIES, REPORT_STATUSES, categoryLabel, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
+import { DATE_BASES, dateRangeError, filterReportsByDate } from '../services/reportExport.js'
 
 export default function ReportsView({ reports, users, onOpenReport }) {
   const [status, setStatus] = useState('')
   const [category, setCategory] = useState('')
   const [query, setQuery] = useState('')
-  const visible = reports.filter((r) => (!status || r.status === status) && (!category || r.categoryId === category)
+  const [dateField, setDateField] = useState('occurredAt')
+  const [range, setRange] = useState({ start: '', end: '' })
+  const error = dateRangeError(range)
+  const visible = filterReportsByDate(reports, range, dateField).filter((r) => (!status || r.status === status) && (!category || r.categoryId === category)
     && `${r.id} ${r.location.address ?? 'Confirmed map location'}`.toLowerCase().includes(query.toLowerCase()))
   const control = 'bg-darkBg border border-darkBorder text-xs rounded-xl px-3 py-2 text-slate-300'
   return (
@@ -21,8 +25,19 @@ export default function ReportsView({ reports, users, onOpenReport }) {
             <select aria-label="Filter by accident category" className={control} value={category} onChange={(e) => setCategory(e.target.value)}>
               <option value="">All accident categories</option>{ACCIDENT_CATEGORIES.map((value) => <option key={value.id} value={value.id}>{value.label}</option>)}
             </select>
+            <label className="text-xs text-slate-400">Date basis
+              <select aria-label="Report date basis" className={`${control} block mt-1`} value={dateField} onChange={(e) => setDateField(e.target.value)}>
+                {Object.entries(DATE_BASES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            {['start', 'end'].map((key) => <label key={key} className="text-xs text-slate-400">{key === 'start' ? 'Start date' : 'End date'}
+              <input type="date" aria-label={`Report ${key} date`} aria-invalid={Boolean(error)} className={`${control} block mt-1`} value={range[key]} onChange={(e) => setRange({ ...range, [key]: e.target.value })} />
+            </label>)}
+            <button type="button" className={control} onClick={() => setRange({ start: '', end: '' })}>Clear dates</button>
             <span className="text-xs text-slate-400 py-2">{visible.length} reports</span>
           </div>
+          <p className="text-xs text-slate-400">Dates use Asia/Manila and include both endpoints. Leave either date blank for an open boundary.</p>
+          {error && <p role="alert" className="text-xs text-orange-300">{error}</p>}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">

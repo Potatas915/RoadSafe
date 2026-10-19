@@ -35,7 +35,8 @@ export const formatDateTime = (value) => new Intl.DateTimeFormat('en-PH', {
  * @property {{address: string, coordinates: {longitude:number, latitude:number}|null}} location
  * @property {string} categoryId One of ACCIDENT_CATEGORIES IDs.
  * @property {string} description Required incident narrative.
- * @property {Array<{type:string, count:number}>} vehicles Empty when not applicable.
+ * @property {Array<{type:string, count:number}>} vehicles Empty when unknown or not applicable.
+ * @property {'known'|'unknown'|'not_applicable'} [vehicleStatus] Optional for legacy fixtures.
  * @property {{status:string, injuredCount:number|null, fatalityCount:number|null}} injuries Unknown counts are null.
  * @property {number} severity 1=minor, 2=injury, 3=serious/fatal (heatmap weight only).
  * @property {Array<{id:string, fileName:string, url:string, mimeType:string}>} evidence Optional attachments.
@@ -68,6 +69,11 @@ export function validateReport(report) {
   if (!Number.isInteger(report.severity) || report.severity < 1 || report.severity > 3) errors.push('Severity must be 1, 2 or 3.')
   if (!report.reporter || !['userId', 'name', 'contact'].every((key) => nullableText(report.reporter[key]))) errors.push('Reporter fields must be nonempty strings or null.')
   if (!Array.isArray(report.vehicles) || report.vehicles.some((v) => !v || !text(v.type) || !Number.isInteger(v.count) || v.count < 1)) errors.push('Vehicles require a type and positive count.')
+  if (report.vehicleStatus !== undefined && (!['unknown', 'known', 'not_applicable'].includes(report.vehicleStatus)
+    || !Array.isArray(report.vehicles) || (report.vehicleStatus === 'known' ? report.vehicles.length === 0 : report.vehicles.length !== 0))) errors.push('Vehicle status does not match vehicle information.')
+  if (report.vehicleStatus === 'known' && Array.isArray(report.vehicles) && (report.vehicles.length > 10
+    || new Set(report.vehicles.map((v) => v?.type)).size !== report.vehicles.length
+    || report.vehicles.some((v) => !['car', 'motorcycle', 'tricycle', 'jeepney', 'van', 'bus', 'truck', 'bicycle', 'other', 'unknown'].includes(v?.type) || v.count > 999))) errors.push('Invalid structured vehicle details.')
   const injury = report.injuries
   if (!injury || !INJURY_STATUSES.includes(injury.status) || !['injuredCount', 'fatalityCount'].every((key) => injury[key] === null || count(injury[key]))) errors.push('Invalid injury information.')
   else if (injury.status === 'unknown' && (injury.injuredCount !== null || injury.fatalityCount !== null)
