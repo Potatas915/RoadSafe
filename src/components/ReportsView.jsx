@@ -6,10 +6,11 @@ export default function ReportsView({ reports, users, onOpenReport }) {
   const [status, setStatus] = useState('')
   const [category, setCategory] = useState('')
   const [query, setQuery] = useState('')
+  const [duplicatesOnly, setDuplicatesOnly] = useState(false)
   const [dateField, setDateField] = useState('occurredAt')
   const [range, setRange] = useState({ start: '', end: '' })
   const error = dateRangeError(range)
-  const visible = filterReportsByDate(reports, range, dateField).filter((r) => (!status || r.status === status) && (!category || r.categoryId === category)
+  const visible = filterReportsByDate(reports, range, dateField).filter((r) => (!status || r.status === status) && (!category || r.categoryId === category) && (!duplicatesOnly || r.isDuplicate)
     && `${r.id} ${r.location.address ?? 'Confirmed map location'}`.toLowerCase().includes(query.toLowerCase()))
   const control = 'bg-darkBg border border-darkBorder text-xs rounded-xl px-3 py-2 text-slate-300'
   return (
@@ -34,6 +35,7 @@ export default function ReportsView({ reports, users, onOpenReport }) {
               <input type="date" aria-label={`Report ${key} date`} aria-invalid={Boolean(error)} className={`${control} block mt-1`} value={range[key]} onChange={(e) => setRange({ ...range, [key]: e.target.value })} />
             </label>)}
             <button type="button" className={control} onClick={() => setRange({ start: '', end: '' })}>Clear dates</button>
+            <label className="text-xs text-slate-300 py-2"><input type="checkbox" checked={duplicatesOnly} onChange={event => setDuplicatesOnly(event.target.checked)} /> Only duplicate reports</label>
             <span className="text-xs text-slate-400 py-2">{visible.length} reports</span>
           </div>
           <p className="text-xs text-slate-400">Dates use Asia/Manila and include both endpoints. Leave either date blank for an open boundary.</p>
@@ -51,7 +53,7 @@ export default function ReportsView({ reports, users, onOpenReport }) {
                 </td>
                 <td className="p-4">{formatDateTime(r.occurredAt)}</td><td className="p-4">{r.location.address ?? 'Confirmed map location'}</td>
                 <td className="p-4">{categoryLabel(r.categoryId)}</td>
-                <td className="p-4">{r.status}<span className={`block mt-1 ${isOfficiallyVerified(r) ? 'text-emerald-400' : 'text-amber-300'}`}>{isOfficiallyVerified(r) ? 'Officially verified' : 'Public submission — unverified'}</span></td>
+                <td className="p-4">{r.status}{r.isDuplicate && <span className="block text-amber-300">Duplicate report</span>}<span className={`block mt-1 ${isOfficiallyVerified(r) ? 'text-emerald-400' : 'text-amber-300'}`}>{isOfficiallyVerified(r) ? 'Officially verified' : 'Public submission — unverified'}</span></td>
                 <td className="p-4">{officerName(users, r.assignedOfficerId)}</td>
                 <td className="p-4"><button onClick={() => onOpenReport(r.id)} className="px-3 py-2 bg-slate-800 rounded-lg">View {r.id}</button></td>
               </tr>)}

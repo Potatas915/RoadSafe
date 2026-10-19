@@ -46,6 +46,8 @@ export const formatDateTime = (value) => new Intl.DateTimeFormat('en-PH', {
  * @property {string} officialRemarks Empty until official findings are recorded.
  * @property {{verifiedAt:string|null, verifiedBy:string|null}} verification Independent verification provenance.
  * @property {string|null} rejectionReason Required for Rejected.
+ * @property {boolean} [isDuplicate] Explicit duplicate flag; legacy records may omit it.
+ * @property {string|null} [duplicateOfReportId] Original reference for Admin; redacted for other roles.
  */
 const text = (value) => typeof value === 'string' && value.trim().length > 0
 const nullableText = (value) => value === null || text(value)
@@ -89,6 +91,10 @@ export function validateReport(report) {
   if (VERIFIED_STATUSES.includes(report.status) && !verification?.verifiedAt) errors.push('This status requires official verification.')
   if ([REPORT_STATUS.ASSIGNED, REPORT_STATUS.IN_PROGRESS].includes(report.status) && !report.assignedOfficerId) errors.push('This status requires an assigned officer.')
   if (!nullableText(report.rejectionReason) || report.status === REPORT_STATUS.REJECTED && !text(report.rejectionReason)) errors.push('Rejected reports require a reason.')
+  if (report.isDuplicate !== undefined && typeof report.isDuplicate !== 'boolean') errors.push('Invalid duplicate flag.')
+  if (report.isDuplicate && report.status !== REPORT_STATUS.REJECTED) errors.push('Duplicate reports must be rejected.')
+  if (report.duplicateOfReportId !== undefined && (!nullableText(report.duplicateOfReportId)
+    || report.duplicateOfReportId !== null && (!report.isDuplicate || report.duplicateOfReportId === report.id))) errors.push('Invalid original report reference.')
   return errors
 }
 
@@ -131,6 +137,7 @@ export function reportSummary(reports) {
     verified: reports.filter(isOfficiallyVerified).length, closed: reports.filter((r) => r.status === REPORT_STATUS.CLOSED).length }
 }
 export function updateReport(report, patch, actorId, now = new Date().toISOString()) {
+  if (report.isDuplicate && patch.status !== REPORT_STATUS.REJECTED) throw new Error('Clear the duplicate flag before changing status.')
   const next = { ...report, status: patch.status, assignedOfficerId: patch.assignedOfficerId,
     officialRemarks: patch.officialRemarks, rejectionReason: patch.status === REPORT_STATUS.REJECTED ? patch.rejectionReason : null }
   // Verification survives later workflow states, but returning to review clears it.

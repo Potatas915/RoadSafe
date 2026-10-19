@@ -10,7 +10,8 @@ import ReportModal from './components/ReportModal.jsx'
 import { reportsResponse } from './data/reports.js'
 import { parseReportsResponse, reportSummary, ROLES, updateReport } from './models/report.js'
 import { backend } from './backend/client.js'
-import { loadReportFeed, saveReportReview } from './backend/reports.js'
+import { loadReportFeed, saveReportReview, saveReportDuplicate } from './backend/reports.js'
+import { applyDuplicateReview } from './models/reportDuplicates.js'
 import ManagerAuth from './backend/ManagerAuth.jsx'
 import useNotifications from './hooks/useNotifications.js'
 
@@ -77,6 +78,7 @@ function ManagerDashboard({ signedInUser }) {
     if (!actor) throw new Error('Administrator profile is unavailable. Refresh and try again.')
     const current = displayed.data.find((report) => report.id === id)
     if (!current) throw new Error('Report no longer exists.')
+    if (patch.status === 'Rejected' && displayed.data.some(r => r.duplicateOfReportId === id)) throw new Error('This original report has linked duplicates. Clear their flags before rejecting it.')
     if (live && !previewing) {
       await saveReportReview(backend, current, patch)
       await refresh()
@@ -87,6 +89,22 @@ function ManagerDashboard({ signedInUser }) {
           fromStatus: current.status, status: updated.status, createdAt: new Date().toISOString() }]
       }
       const next = { ...displayed, data: displayed.data.map((report) => report.id === id ? updated : report) }
+      parseReportsResponse(next)
+      if (previewing) setDemoResponse(next)
+      else setResponse(next)
+    }
+    setActiveReport(null)
+  }
+  async function saveDuplicate(id, originalId, reason) {
+    const actor = previewing ? demoResponse.included.users.find(user => user.role === ROLES.ADMIN) : currentUser
+    const current = displayed.data.find(report => report.id === id)
+    if (!current) throw new Error('Report no longer exists.')
+    const updated = applyDuplicateReview(displayed.data, id, originalId, reason, actor)
+    if (live && !previewing) {
+      await saveReportDuplicate(backend, current, originalId, reason)
+      await refresh()
+    } else {
+      const next = { ...displayed, data: displayed.data.map(report => report.id === id ? updated : report) }
       parseReportsResponse(next)
       if (previewing) setDemoResponse(next)
       else setResponse(next)
@@ -113,7 +131,7 @@ function ManagerDashboard({ signedInUser }) {
         {view === 'officers-view' && <OfficersView reports={reports} users={users} onOpenReport={setActiveReport} />}
         {view === 'analytics-view' && <AnalyticsView reports={reports} users={users} source={live ? 'Shared reports' : 'Demo / session preview'} />}
       </div>
-      {selectedReport && <ReportModal key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} onClose={() => setActiveReport(null)} />}
+      {selectedReport && <ReportModal key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} />}
     </div>
   )
 }

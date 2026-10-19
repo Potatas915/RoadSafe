@@ -23,3 +23,10 @@ export async function saveReportReview(client, report, patch) {
   })
   if (error) throw error
 }
+
+export async function saveReportDuplicate(client, report, originalId, reason) {
+  const { error } = await client.rpc('set_report_duplicate', {
+    p_id: report.id, p_original: originalId || null, p_reason: reason?.trim() || null, p_version: report.version,
+  })
+  if (error) throw error
+}
