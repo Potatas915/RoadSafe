@@ -44,6 +44,7 @@ export default function useResponderState(selectedStation) {
     })
   }, [])
   const requestAssistance = useCallback((id, scene, details, station) => {
+    if (station?.responderType !== 'police') return
     const request = createPersonnelRequest(scene, details)
     if (!request) return
     setState((previous) => previous[id]?.request ? previous : {

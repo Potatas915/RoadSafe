@@ -60,7 +60,7 @@ export default function ResponderCard({
   const setPersonnel = onPersonnelChange ?? setLocalPersonnel
   const [note, setNote] = useState('')
   const [showDetails, setShowDetails] = useState(false)
-  if (!station) return null
+  if (!station || station.responderType !== 'police') return null
 
   const ui = TYPE_UI[station.responderType] || TYPE_UI.police
   const request = data.request

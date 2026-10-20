@@ -8,7 +8,12 @@ const MEDICAL_CONFIG = {
   id: "medical",
   color: "#ef4444",
   badgeSvg: MEDICAL_BADGE_SVG,
-  loadStations: loadMedicalStations,
+  loadStations: async (options) => {
+    const stations = await loadMedicalStations(options);
+    const facilities = stations.filter(station => ['hospital', 'clinic'].includes(station.kind?.toLowerCase()));
+    if (stations.warning) facilities.warning = stations.warning;
+    return facilities;
+  },
   // Start slightly later than the police download so the two requests
   // don't hit the free OpenStreetMap server at the same instant.
   preloadDelayMs: 3000,

@@ -57,9 +57,7 @@ test('station cards retain scene boxes, show type names, and require a scene to 
   assert.ok(!html.includes('Assign officer') && !html.includes('Assign medic'))
   for (const kind of ['Hospital', 'Clinic', 'Ambulance station']) {
     const medical = render({ station: { ...station, responderType: 'medical', kind }, scene })
-    assert.ok(medical.includes(kind === 'Ambulance station' ? 'Ambulance Station' : kind))
-    assert.match(medical, /Request medical personnel/)
-    assert.ok(!medical.includes('disabled=""'))
+    assert.equal(medical, '', 'Medical facilities cannot render personnel request cards')
   }
 })
 

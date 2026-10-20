@@ -6,12 +6,12 @@ import { createRequire } from 'node:module'
 import { transformSync } from 'esbuild'
 import { routePrefix } from '../src/services/routing.js'
 
-function setup({ busy = false, personnel = 1, stationHit = true, layersAvailable = true } = {}) {
+function setup({ busy = false, personnel = 1, stationHit = true, layersAvailable = true, medical = false } = {}) {
   const refs = [], effects = [], canvasEvents = new Map(), events = new Map(), frames = new Map()
   let sequence = 0, enabled = true, captured = false, target = true
   const calls = []
-  const station = { properties: { id: 'station-1', name: 'Station' }, geometry: { coordinates: [10, 10] }, layer: { id: 'roadsafe-police-stations-layer' } }
-  const incident = { properties: { id: 'incident-1' }, geometry: { coordinates: [100, 100] } }
+  const station = { properties: { id: 'station-1', name: 'Station', kind: 'Hospital' }, geometry: { coordinates: medical ? [100, 100] : [10, 10] }, layer: { id: medical ? 'roadsafe-medical-stations-layer' : 'roadsafe-police-stations-layer' } }
+  const incident = { properties: { id: 'incident-1' }, geometry: { coordinates: medical ? [10, 10] : [100, 100] } }
   const canvas = { style: {}, addEventListener: (name, fn) => canvasEvents.set(name, fn), removeEventListener: name => canvasEvents.delete(name), setPointerCapture: () => { captured = true }, hasPointerCapture: () => captured, releasePointerCapture: () => { captured = false } }
   const map = {
     getCanvas: () => canvas,
@@ -19,7 +19,8 @@ function setup({ busy = false, personnel = 1, stationHit = true, layersAvailable
     getLayer: () => layersAvailable,
     queryRenderedFeatures: (where, { layers }) => {
       assert.ok(Array.isArray(where), 'MapLibre geometry must be an array, never a plain point object')
-      return layers.includes('roadsafe-report-points') ? (target ? [incident] : []) : stationHit ? [station] : []
+      if (layers.includes('roadsafe-report-points')) return medical || target ? [incident] : []
+      return layers.includes(station.layer.id) && stationHit && (!medical || target) ? [station] : []
     },
     project: ([x, y]) => ({ x, y }),
     dragPan: { isEnabled: () => enabled, disable: () => { enabled = false }, enable: () => { enabled = true } },
@@ -38,7 +39,7 @@ function setup({ busy = false, personnel = 1, stationHit = true, layersAvailable
     requestAnimationFrame: fn => { frames.set(++sequence, fn); return sequence }, cancelAnimationFrame: id => frames.delete(id),
     setTimeout: () => 1, clearTimeout() {},
   })
-  module.exports.default({ mapRef: { current: map }, ready: true, getPersonnel: () => personnel, canDispatch: () => !busy, onDispatch: (...args) => calls.push(args) })
+  module.exports.default({ mapRef: { current: map }, ready: true, getPersonnel: () => personnel, canDispatch: () => !busy, onDispatch: (...args) => calls.push(args), onRecommend: (...args) => calls.push(args) })
   const labels = { span: {}, small: {} }
   for (const ref of refs.slice(0, 3)) ref.current = { style: {}, dataset: {}, querySelector: name => labels[name], setAttribute() {} }
   const cleanup = effects[1]()
@@ -103,4 +104,32 @@ test('route reveal interpolates across unequal road segments and two-point previ
   assert.deepEqual(routePrefix(coordinates, .875), [[0, 0], [3, 0], [3, .5]])
   assert.deepEqual(routePrefix([[0, 0], [10, 0]], .5), [[0, 0], [5, 0]])
   assert.deepEqual(routePrefix(coordinates, 1), coordinates)
+})
+
+
+test('incident drag targets hospital information while medical stations cannot be dragged', () => {
+  const ui = setup({ medical: true })
+  ui.down(); ui.move();
+  assert.equal(ui.labels.small.textContent, 'FACILITY INFORMATION · NO DISPATCH')
+  ui.up();
+  assert.equal(ui.calls.length, 1)
+  assert.equal(ui.calls[0][0].properties.id, 'incident-1')
+  assert.equal(ui.calls[0][1].responderType, 'medical')
+  assert.equal(ui.calls[0][1].lng, 100)
+  assert.equal(ui.enabled(), true)
+  ui.cleanup()
+  const station = setup({ medical: true })
+  station.down(100, 100); station.move(10, 10); station.up(10, 10)
+  assert.equal(station.calls.length, 0)
+  assert.equal(station.enabled(), true)
+  station.cleanup()
+})
+
+test('invalid and cancelled incident-to-facility drops never recommend a location', () => {
+  for (const cancel of [false, true]) {
+    const ui = setup({ medical: true }); ui.down(); ui.move()
+    if (cancel) ui.events.get('keydown')({ key: 'Escape' })
+    else ui.noTarget()
+    ui.up(); assert.equal(ui.calls.length, 0); assert.equal(ui.enabled(), true); ui.cleanup()
+  }
 })

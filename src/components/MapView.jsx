@@ -29,6 +29,9 @@ import DispatchDrag from "./DispatchDrag.jsx";
 import { nearbyStreetFeatures } from "../services/affectedStreets.js";
 import ResponderCard from "./ResponderCard.jsx";
 import StationEnforcers from "./StationEnforcers.jsx";
+import MedicalFacilityCard from './MedicalFacilityCard.jsx';
+import { nearestFacilities, isMedicalFacility } from '../models/medicalFacilities.js';
+import { getMedicalRecommendation, saveMedicalRecommendation } from '../backend/medicalRecommendations.js';
 import MapReportCard, { MapReportPreview } from "./MapReportCard.jsx";
 import AccidentCategoryIcon from "./AccidentCategoryIcon.jsx";
 import { registerAccidentIcons } from "../models/accidentIcons.js";
@@ -339,9 +342,9 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const responders = useResponderState(selectedStation);
   const [routes, setRoutes] = useState({});
   const routeCache = useRef(new Map());
-  const activeRequests = responders.activeRequests;
+  const activeRequests = useMemo(() => responders.activeRequests.filter(entry => entry.station.responderType === 'police'), [responders.activeRequests]);
   const retainedStations = useMemo(() => activeRequests.map(({ station }) => station), [activeRequests]);
-  const stationRequest = selectedStation ? responders.get(selectedStation.id).request : null;
+  const stationRequest = selectedStation?.responderType === 'police' ? responders.get(selectedStation.id).request : null;
   const routeInfo = stationRequest ? routes[stationRequest.id]?.route ?? null : null;
   useEffect(() => {
     if (!mapReady) return;
@@ -437,7 +440,45 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     radiusKm,
   );
 
-  // Which personnel types the "Deploy personnel" button will show.
+  const [medicalRecommendations, setMedicalRecommendations] = useState({});
+  const [medicalBusy, setMedicalBusy] = useState(false);
+  const [medicalMessage, setMedicalMessage] = useState('');
+  const [medicalError, setMedicalError] = useState('');
+  const medicalWrite = useRef(false);
+  const nearbyMedical = useMemo(() => nearestFacilities(medical.inventory, searchAnchor, radiusKm), [medical.inventory, searchAnchor, radiusKm]);
+  useEffect(() => {
+    if (sampleMode || !enforcerClient || !selectedRecord) return;
+    let cancelled = false;
+    const id = selectedRecord.id;
+    getMedicalRecommendation(enforcerClient, id).then(value => {
+      if (!cancelled) setMedicalRecommendations(previous => ({ ...previous, [id]: value }));
+    }).catch(() => { if (!cancelled) setMedicalError('Could not load the saved facility recommendation. Reopen the incident to retry.'); });
+    return () => { cancelled = true; };
+  }, [sampleMode, enforcerClient, selectedRecord?.id, selectedRecord?.version]);
+  useEffect(() => { setMedicalMessage(''); setMedicalError(''); }, [selectedRecord?.id, sampleMode]);
+  async function recommendMedical(report, station) {
+    if (medicalWrite.current || !report || !isMedicalFacility(station)) return;
+    setSelectedReportId(report.id); setSelectedStation(station); setHoveredIncident(null);
+    setMedicalMessage(''); setMedicalError('');
+    const coordinates = [report.location.coordinates.longitude, report.location.coordinates.latitude];
+    const candidates = nearestFacilities([...medical.inventory.filter(item => item.id !== station.id), station], coordinates, 50);
+    if (!candidates.some(item => item.id === station.id)) { setMedicalError('Choose a hospital or clinic within 50 km of this incident.'); return; }
+    const facilities = [candidates.find(item => item.id === station.id), ...candidates.filter(item => item.id !== station.id).slice(0, 4)];
+    if (sampleMode || !enforcerClient) {
+      setMedicalRecommendations(previous => ({ ...previous, [report.id]: { selectedId: station.id, facilities } }));
+      setMedicalMessage('Demo recommendation saved for this session.'); return;
+    }
+    medicalWrite.current = true; setMedicalBusy(true);
+    try {
+      const saved = await saveMedicalRecommendation(enforcerClient, report, station.id, facilities);
+      setMedicalRecommendations(previous => ({ ...previous, [report.id]: saved }));
+      setMedicalMessage('Saved. The assigned Officer can view these locations in the mobile case.');
+      try { await onAssigned?.(); } catch { setMedicalMessage('Recommendation saved. Refresh the report feed before further edits.'); }
+    } catch (error) { setMedicalError('Could not save recommendation: ' + error.message); }
+    finally { medicalWrite.current = false; setMedicalBusy(false); }
+  }
+
+  // Which personnel types the "Show nearby stations & facilities" button will show.
   const [pickPolice, setPickPolice] = useState(true);
   const [pickMedical, setPickMedical] = useState(true);
   const anyDeployed = police.deployed || medical.deployed;
@@ -1007,7 +1048,8 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
           <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
           <DispatchDrag mapRef={mapRef} ready={mapReady}
             getPersonnel={(station) => personnelByStation[station.id] ?? 1}
-            canDispatch={(station) => !responders.get(station.id).request}
+            canDispatch={(station) => station.responderType === 'police' && !responders.get(station.id).request}
+            onRecommend={(feature, station) => { const report = mapRecords.find(item => item.id === feature.properties.id); void recommendMedical(report, station); }}
             onDispatch={(station, feature) => {
               setSelectedReportId(feature.properties.id);
               setSelectedStation(station);
@@ -1023,7 +1065,14 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             onZoom={focusSelectedReport}
             onOpenReport={sampleMode ? undefined : onOpenReport}
           />}
-          {selectedStation && (
+          {selectedStation?.responderType === 'medical' && <MedicalFacilityCard
+            station={selectedStation} scene={scene} nearby={nearbyMedical}
+            selectedId={medicalRecommendations[selectedRecord?.id]?.selectedId}
+            onSelect={station => setSelectedStation({ ...station, responderType: 'medical' })}
+            onRecommend={() => void recommendMedical(selectedRecord, selectedStation)}
+            busy={medicalBusy} message={medicalMessage} error={medicalError}
+            onClose={() => setSelectedStation(null)} />}
+          {selectedStation?.responderType === 'police' && (
             <ResponderCard
               key={selectedStation.id}
               station={selectedStation}
@@ -1074,6 +1123,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
 
           <section className="roadsafe-map-panel">
             <h3 className="roadsafe-map-panel-title">Emergency response</h3>
+            <p className="text-[11px] text-slate-400 mb-3">Drag police stations to incidents. Drag incidents to hospitals or clinics to recommend a location to the responding Officer.</p>
 
             <label className="roadsafe-map-toggle" style={{ marginBottom: 9 }}>
               Search radius
@@ -1110,10 +1160,10 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
               {anyLoading
                 ? "Cancel loading"
                 : anyDeployed
-                  ? "Hide personnel"
+                  ? "Hide stations & facilities"
                   : radius.active
                     ? "Hide radius"
-                    : "Deploy personnel"}
+                    : "Show nearby stations & facilities"}
             </button>
 
             <div className="roadsafe-pick-row">
@@ -1133,7 +1183,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
                 onClick={() => applyPicks(pickPolice, !pickMedical)}
                 disabled={anyLoading}
               >
-                Medics
+                Hospitals / Clinics
               </button>
             </div>
 

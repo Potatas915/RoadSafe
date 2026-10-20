@@ -163,6 +163,7 @@ export default function useStationLayer(
 
   const [deployed, setDeployed] = useState(false);
   const [stations, setStations] = useState([]);
+  const [inventory, setInventory] = useState([]);
   const [area, setArea] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -263,6 +264,7 @@ export default function useStationLayer(
         const all = await config.loadStations({ center, radiusKm: radius, signal: controller.signal, nationwide: true });
         if (controller.signal.aborted) return;
 
+        setInventory(all);
         const results = nationwide ? all : filterByRadius(all, center, radius);
 
         setStations(results);
@@ -322,6 +324,7 @@ export default function useStationLayer(
   return {
     deployed,
     stations,
+    inventory,
     loading,
     error,
     toggle,
