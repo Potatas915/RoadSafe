@@ -22,7 +22,7 @@ export default function DashboardIncidentFeed({ reports, onOpenReport }) {
       <input aria-label="Search incident feed" placeholder="Search ID, location or category" value={query} onChange={(event) => { setQuery(event.target.value); setLimit(20) }} className="w-full min-w-0 rounded border border-white/10 bg-black/10 px-2 py-1.5 text-[10px] text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-orange-400/60" />
       <label className="flex items-center gap-2 text-[10px] text-slate-400"><input type="checkbox" checked={activeOnly} onChange={(event) => { setActiveOnly(event.target.checked); setLimit(20) }} className="accent-orange-400" />Active reports only</label>
     </div>
-    <div className="max-h-[28rem] xl:max-h-[65vh] overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
+    <div className="max-h-[28rem] xl:max-h-[65vh] overflow-y-auto">
       <ul className="divide-y divide-white/[.055]">{filtered.slice(0, limit).map((report) => {
         const severity = caseSeverity(report)
         const vehicleCount = reportedVehicles(report)

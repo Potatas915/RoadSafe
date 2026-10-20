@@ -2,6 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Shared vertical and horizontal scrollbars, including native dialogs. */
+@media (forced-colors: none) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #64748b #0b0f19;
+  }
+
+  /* Use the detailed treatment where scrollbar pseudo-elements are supported. */
+  @supports selector(::-webkit-scrollbar) {
+    * { scrollbar-width: auto; scrollbar-color: auto; }
+    *::-webkit-scrollbar { width: 8px; height: 8px; }
+    *::-webkit-scrollbar-track {
+      background: #0b0f19;
+      border-radius: 999px;
+    }
+    *::-webkit-scrollbar-thumb {
+      background: #64748b;
+      border: 2px solid #0b0f19;
+      border-radius: 999px;
+      min-height: 36px;
+      min-width: 36px;
+    }
+    *::-webkit-scrollbar-thumb:hover { background: #fb923c; }
+    *::-webkit-scrollbar-thumb:active { background: #f97316; }
+    *::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+    *::-webkit-scrollbar-corner { background: #0b0f19; }
+  }
+}
+
 .roadsafe-shell[data-tactical="true"] > aside { flex-shrink: 0; }
 .roadsafe-shell[data-tactical="true"] .roadsafe-topbar { gap: 16px; }
 .roadsafe-shell[data-tactical="true"] .roadsafe-topbar > div { min-width: 0; }
