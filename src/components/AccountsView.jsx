@@ -53,7 +53,7 @@ export default function AccountsView({ client, currentUserId }) {
 
 export function AccountsTable({ accounts, onEdit, disabled }) {
   return <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr>{['Account','Unit / responder','Role','Access','Action'].map(h => <th key={h} className="text-left py-2">{h}</th>)}</tr></thead><tbody>
-    {accounts.map(account => <tr key={account.id} className="border-t border-darkBorder"><td className="py-3">{account.name}<p className="text-xs text-slate-400">{account.username ?? 'Legacy account'} · {account.id}</p></td><td>{account.unit} · {account.responderType}</td><td>{account.role}</td><td>{account.enabled ? 'Active' : 'Suspended'}</td><td><button disabled={disabled} onClick={() => onEdit(account)} className="text-orange-300">Edit account</button></td></tr>)}
+    {accounts.map(account => <tr key={account.id} className="border-t border-darkBorder"><td className="py-3">{account.name}<p className="text-xs text-slate-400">{account.username ?? 'Legacy account'} · {account.id}</p></td><td>{account.unit} · {account.responderType}</td><td>{account.role}{account.requestedAccountType === 'Officer' && account.role === 'Public' && <p className="text-orange-300">Enforcer application — awaiting Admin verification</p>}</td><td>{account.enabled ? 'Active' : 'Suspended'}</td><td><button disabled={disabled} onClick={() => onEdit(account)} className="text-orange-300">Edit account</button></td></tr>)}
   </tbody></table></div>
 }
 
@@ -64,6 +64,7 @@ export function AccountEditor({ account, currentUserId, onSave, onCancel, saving
   const self = account.id === currentUserId
   return <form onSubmit={e => { e.preventDefault(); if (!saving) void onSave(draft, reason) }} className="p-4 rounded-xl border border-darkBorder space-y-3 bg-darkCard">
     <h2 className="font-semibold">Edit {account.name}</h2>
+    {account.requestedAccountType === 'Officer' && account.role === 'Public' && <p className="text-sm text-orange-300">Traffic enforcer applicant. Verify their identity and credentials, then select Officer, Police and Active access below to approve. Record your verification in the change reason. Leave Public to withhold approval.</p>}
     <fieldset disabled={saving} className="grid sm:grid-cols-2 gap-3">
       {['name','unit'].map(key => <label key={key}>{key === 'name' ? 'Display name' : 'Unit'}<input aria-label={`Account ${key}`} required maxLength={120} className={field} value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value })} /></label>)}
       <label>Responder type<select aria-label="Account responder type" className={field} value={draft.responderType} onChange={e => setDraft({ ...draft, responderType: e.target.value })}><option value="police">Police</option><option value="medical">Medical</option></select></label>

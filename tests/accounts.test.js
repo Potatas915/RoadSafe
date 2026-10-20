@@ -14,6 +14,12 @@ import { parseReportsResponse } from '../src/models/report.js'
 
 const account = { id: 'officer-id', name: '<Officer>', unit: 'Unit 1', responderType: 'police', role: 'Officer', enabled: true, version: 3, username: 'officer_name' }
 const fixture = () => ({ ...structuredClone(reportsResponse.data[0]), status: 'Submitted', assignedOfficerId: null, verification: { verifiedAt: null, verifiedBy: null }, isDuplicate: false })
+test('Admin sees pending enforcer applications and verification instructions', () => {
+  const { AccountsTable, AccountEditor } = component('../src/components/AccountsView.jsx', name => name === '../backend/accounts.js' ? { loadAccounts, saveAccount } : undefined)
+  const applicant = { ...account, role: 'Public', requestedAccountType: 'Officer' }
+  assert.match(renderToStaticMarkup(React.createElement(AccountsTable, { accounts: [applicant] })), /awaiting Admin verification/)
+  assert.match(renderToStaticMarkup(React.createElement(AccountEditor, { account: applicant })), /Verify their identity and credentials/)
+})
 function component(path, extraRequire, globals = {}) {
   const url = new URL(path, import.meta.url), module = { exports: {} }, require = createRequire(fileURLToPath(url))
   vm.runInNewContext(transformSync(readFileSync(url, 'utf8'), { loader: 'jsx', jsx: 'automatic', format: 'cjs' }).code,
