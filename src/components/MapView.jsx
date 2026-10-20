@@ -907,42 +907,121 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
           cursor: pointer;
         }
         
-                .roadsafe-pick-row {
+        .roadsafe-response-action {
+          cursor: pointer;
           display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          margin-top: 9px;
+          align-items: center;
+          justify-content: center;
+          gap: .5rem;
+          border: none;
+          border-radius: 100px;
+          font-weight: 800;
+          padding: .75rem 1rem;
+          font-size: .825rem;
+          line-height: 1rem;
+          background-color: rgba(0, 0, 0, .4);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 0 0 1px rgba(255,255,255,.04);
+          color: #fff;
+          transition: all .5s cubic-bezier(.165,.84,.44,1);
         }
-        .roadsafe-pick {
-          --pick-color: #9ca3af;
-          padding: 3px 12px;
-          border: 1px solid #41464e;
-          background: #1b1e22;
-          color: #8b919a;
+        .roadsafe-response-action {
+          --button-color: #e2e8f0;
+          --button-rgb: 226, 232, 240;
+          width: 100%;
+          background-color: #22262b;
+        }
+        .roadsafe-response-action > i { flex-shrink: 0; color: currentColor; }
+        .roadsafe-response-action:hover {
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 1px rgba(var(--button-rgb),.08);
+          color: var(--button-color);
+          transform: translateY(-.25rem);
+          background-color: rgba(0,0,0,.5);
+        }
+        .roadsafe-response-action:active { transform: translateY(0); }
+        .roadsafe-response-radius {
+          justify-content: space-between;
+          margin-bottom: 10px;
+        }
+        .roadsafe-response-radius select {
+          min-height: 36px;
+          padding: 6px 10px;
+          border: 1px solid #ffffff14;
           border-radius: 999px;
+          background: #0b0f19;
+          color: #e2e8f0;
+          color-scheme: dark;
           font-size: 12px;
           cursor: pointer;
+        }
+        .roadsafe-pick-row {
+          /* Adjust these two values to change the click animation speed. */
+          --response-transition-duration: .3s;
+          --response-mask-duration: .3s;
+          --response-button-height: 34px;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+          margin-top: 12px;
+        }
+        .roadsafe-pick {
+          position: relative;
+          isolation: isolate;
+          width: 100%;
+          min-width: 0;
+          min-height: var(--response-button-height);
+          padding: 5px;
+          border: 3px ridge #64748b;
+          border-radius: .3em;
+          background: transparent;
+          color: #e2e8f0;
+          font-size: 11px;
+          line-height: 1.4;
+          font-weight: bold;
+          cursor: pointer;
           user-select: none;
-          transition: border-color .15s, color .15s, background .15s,
-            box-shadow .15s;
+          transition: border-color var(--response-transition-duration), color var(--response-transition-duration), box-shadow var(--response-transition-duration);
         }
-        .roadsafe-pick:hover:not(:disabled) {
-          background: #22262b;
-          color: #c5cad1;
+        .roadsafe-pick > span {
+          position: relative;
+          z-index: 3;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
         }
-        .roadsafe-pick:disabled {
-          opacity: .6;
-          cursor: default;
+        .roadsafe-pick > span > i { flex-shrink: 0; }
+        .roadsafe-pick::before, .roadsafe-pick::after {
+          content: '';
+          position: absolute;
+          left: 3%;
+          width: 95%;
+          height: 40%;
+          background: #1b1e22;
+          pointer-events: none;
+          transform: scale(1);
+          transform-origin: center;
+          transition: transform var(--response-mask-duration);
         }
+        .roadsafe-pick::after { top: -10px; }
+        .roadsafe-pick::before { top: 80%; }
+        .roadsafe-pick.is-police { --button-color: #60a5fa; --button-glow: #1479ea; }
+        .roadsafe-pick.is-medic { --button-color: #f87171; --button-glow: #dc2626; }
         .roadsafe-pick.is-on {
-          border-color: var(--pick-color);
-          color: #fff;
-          background: #22262b;
-          box-shadow: 0 0 0 1px var(--pick-color),
-            0 0 12px color-mix(in srgb, var(--pick-color) 55%, transparent);
+          color: var(--button-color);
+          border-color: var(--button-color);
+          box-shadow: inset 0 0 25px var(--button-glow);
         }
-        .roadsafe-pick.is-police { --pick-color: #3b82f6; }
-        .roadsafe-pick.is-medic { --pick-color: #ef4444; }
+        .roadsafe-pick.is-on::before, .roadsafe-pick.is-on::after { transform: scale(0); }
+        .roadsafe-pick:disabled, .roadsafe-response-radius select:disabled { opacity: .6; cursor: default; }
+        .roadsafe-pick:focus-visible, .roadsafe-response-action:focus-visible {
+          outline: 2px solid var(--button-color);
+          outline-offset: 3px;
+        }
+        .roadsafe-response-radius select:focus-visible { outline: 2px solid #cbd5e1; outline-offset: 3px; }
+        @media (prefers-reduced-motion: reduce) {
+          .roadsafe-response-action, .roadsafe-pick, .roadsafe-pick::before, .roadsafe-pick::after { transition: none; }
+          .roadsafe-response-action:hover { transform: none; }
+        }
 
         .roadsafe-map-error {
           position: absolute;
@@ -1125,20 +1204,12 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             <h3 className="roadsafe-map-panel-title">Emergency response</h3>
             <p className="text-[11px] text-slate-400 mb-3">Drag police stations to incidents. Drag incidents to hospitals or clinics to recommend a location to the responding Officer.</p>
 
-            <label className="roadsafe-map-toggle" style={{ marginBottom: 9 }}>
+            <label className="roadsafe-map-toggle roadsafe-response-radius">
               Search radius
               <select
                 value={radiusKm}
                 onChange={(event) => setRadiusKm(Number(event.target.value))}
                 disabled={anyLoading}
-                style={{
-                  marginLeft: 8,
-                  background: "#202328",
-                  color: "#e5e7eb",
-                  border: "1px solid #393e45",
-                  borderRadius: 6,
-                  padding: "3px 6px",
-                }}
               >
                 {RADIUS_OPTIONS_KM.map((km) => (
                   <option key={km} value={km}>
@@ -1154,16 +1225,17 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
 
             <button
               type="button"
-              className="roadsafe-map-button"
+              className="roadsafe-response-action"
               onClick={handleDeploy}
             >
-              {anyLoading
+              <i aria-hidden="true" className={`fa-solid ${anyLoading ? 'fa-xmark' : anyDeployed || radius.active ? 'fa-eye-slash' : 'fa-location-crosshairs'}`} />
+              <span>{anyLoading
                 ? "Cancel loading"
                 : anyDeployed
                   ? "Hide stations & facilities"
                   : radius.active
                     ? "Hide radius"
-                    : "Show nearby stations & facilities"}
+                    : "Show nearby stations & facilities"}</span>
             </button>
 
             <div className="roadsafe-pick-row">
@@ -1174,7 +1246,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
                 onClick={() => applyPicks(!pickPolice, pickMedical)}
                 disabled={anyLoading}
               >
-                Police
+                <span><i aria-hidden="true" className="fa-solid fa-shield-halved" /> Police</span>
               </button>
               <button
                 type="button"
@@ -1183,7 +1255,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
                 onClick={() => applyPicks(pickPolice, !pickMedical)}
                 disabled={anyLoading}
               >
-                Hospitals / Clinics
+                <span><i aria-hidden="true" className="fa-solid fa-hospital" /> Hospitals / Clinics</span>
               </button>
             </div>
 
