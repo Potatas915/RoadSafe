@@ -164,7 +164,7 @@ function ManagerDashboard({ signedInUser }) {
             </select>
           </label>
         </div>}
-        {view === 'map-view' && <MapView searchLocation={searchLocation} reportRecords={reports} users={users} onOpenReport={setActiveReport} />}
+        {view === 'map-view' && <MapView searchLocation={searchLocation} reportRecords={reports} users={users} onOpenReport={setActiveReport} enforcerClient={live ? backend : null} onAssigned={refresh} />}
         {view === 'dashboard-view' && <DashboardView reports={displayed.data} onOpenReport={setActiveReport} />}
         {view === 'reports-view' && <ReportsView reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} />}
         {view === 'officers-view' && <OfficersView reports={reports} users={users} onOpenReport={setActiveReport} />}

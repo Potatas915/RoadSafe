@@ -28,6 +28,7 @@ import { previewRoute, fetchRoute, focusRoute, animateRoutes } from "../services
 import DispatchDrag from "./DispatchDrag.jsx";
 import { nearbyStreetFeatures } from "../services/affectedStreets.js";
 import ResponderCard from "./ResponderCard.jsx";
+import StationEnforcers from "./StationEnforcers.jsx";
 import MapReportCard from "./MapReportCard.jsx";
 import AccidentCategoryIcon from "./AccidentCategoryIcon.jsx";
 import { registerAccidentIcons } from "../models/accidentIcons.js";
@@ -304,7 +305,7 @@ function filterReports(reports, selectedTypes, includePending, selectedStatus) {
   };
 }
 
-export default function MapView({ searchLocation, reportRecords, users, onOpenReport }) {
+export default function MapView({ searchLocation, reportRecords, users, onOpenReport, enforcerClient, onAssigned }) {
   const REPORT_TYPES = useCategories();
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -1008,6 +1009,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             <ResponderCard
               key={selectedStation.id}
               station={selectedStation}
+              enforcerPanel={enforcerClient && selectedStation.responderType === 'police' ? <StationEnforcers key={selectedStation.id} client={enforcerClient} station={selectedStation} report={sampleMode ? null : selectedRecord} onAssigned={onAssigned} /> : null}
               selectedPersonnel={personnelByStation[selectedStation.id] ?? 1}
               onPersonnelChange={(count) => setPersonnelByStation(previous => ({ ...previous, [selectedStation.id]: count }))}
               routeInfo={routeInfo}

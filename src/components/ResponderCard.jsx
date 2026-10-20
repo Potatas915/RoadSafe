@@ -53,6 +53,7 @@ export default function ResponderCard({
   onClose,
   selectedPersonnel,
   onPersonnelChange,
+  enforcerPanel,
 }) {
   const [localPersonnel, setLocalPersonnel] = useState(1)
   const personnel = selectedPersonnel ?? localPersonnel
@@ -101,6 +102,7 @@ export default function ResponderCard({
       </div>
 
       <div className={`p-3 space-y-3 text-xs ${request && routeInfo && !showDetails ? 'hidden md:block' : ''}`}>
+        {enforcerPanel}
         <div className="bg-darkBg p-3 rounded-xl border border-darkBorder space-y-1">
           <span className={label}>Location & Coordinates</span>
           <p className="font-medium text-white">
@@ -168,6 +170,7 @@ export default function ResponderCard({
       </div>
 
       <div className="p-3 border-t border-darkBorder bg-slate-900/50 rounded-b-2xl space-y-2">
+        {enforcerPanel && <p className="text-xs text-slate-400">Separate browser-only station request preview below. Use Assign enforcer above for shared accident assignments.</p>}
         {request && routeInfo && <div className="text-xs text-slate-300 space-y-2">
           <p>{routeInfo.isFallback ? 'Direct-line preview · road route unavailable or loading' : 'Driving route displayed · OSRM'}</p>
           <button type="button" aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)} className="md:hidden text-slate-300 underline">{showDetails ? 'Hide request details' : 'Show request details'}</button>
