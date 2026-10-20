@@ -93,7 +93,8 @@ test('details render the chosen record, real evidence, unknown injuries, and all
   assert.ok(b.includes(second.id) && b.includes(second.location.address) && !b.includes(first.location.address))
   assert.ok(a.includes('Public submission') && b.includes('Officially verified accident record'))
   for (const status of REPORT_STATUSES) assert.ok(a.includes(status))
-  assert.ok(a.includes('No evidence attached.') && !a.includes('Evidence_01.jpg'))
+  assert.ok(a.includes(first.evidence[0].url))
+  assert.ok(render({ ...first, evidence: [] }).includes('No evidence attached.'))
   const unknown = { ...first, injuries:{status:'unknown', injuredCount:null, fatalityCount:null}, evidence:[{id:'photo-1', fileName:'scene.jpg', mimeType:'image/jpeg', url:'/evidence/scene.jpg'}] }
   const html = render(unknown)
   assert.ok(html.includes('Unknown') && html.includes('/evidence/scene.jpg'))

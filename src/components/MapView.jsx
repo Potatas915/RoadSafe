@@ -29,7 +29,7 @@ import DispatchDrag from "./DispatchDrag.jsx";
 import { nearbyStreetFeatures } from "../services/affectedStreets.js";
 import ResponderCard from "./ResponderCard.jsx";
 import StationEnforcers from "./StationEnforcers.jsx";
-import MapReportCard from "./MapReportCard.jsx";
+import MapReportCard, { MapReportPreview } from "./MapReportCard.jsx";
 import AccidentCategoryIcon from "./AccidentCategoryIcon.jsx";
 import { registerAccidentIcons } from "../models/accidentIcons.js";
 import { luzonReportsResponse, LUZON_SAMPLE_BOUNDS } from "../data/luzonReports.js";
@@ -319,6 +319,9 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const reports = useMemo(() => reportsToGeoJSON(mapRecords), [mapRecords]);
   const [mapError, setMapError] = useState("");
   const [selectedReportId, setSelectedReportId] = useState(null);
+ const [hoveredIncident, setHoveredIncident] = useState(null);
+ const hoveredRecord = hoveredIncident && filterReports(reports, selectedTypes, includePending, selectedStatus).features.some(feature => feature.id === hoveredIncident.id)
+ ? mapRecords.find(report => report.id === hoveredIncident.id) : null;
   const selectedFeature = reports.features.find((feature) => feature.id === selectedReportId
     && selectedTypes.includes(feature.properties.reportType) && (!selectedStatus || feature.properties.status === selectedStatus)
     && (includePending || feature.properties.verified));
@@ -562,6 +565,17 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
       }
     });
 
+    map.on("click", () => setHoveredIncident(null));
+    map.on("movestart", () => setHoveredIncident(null));
+    map.on("mouseenter", "roadsafe-report-points", (event) => {
+      const feature = event.features?.[0];
+      if (feature) setHoveredIncident({ id: feature.properties.id, x: event.point.x, y: event.point.y });
+    });
+    map.on("mouseleave", "roadsafe-report-points", () => setHoveredIncident(null));
+    map.on("mousemove", "roadsafe-report-points", (event) => {
+      const id = event.features?.[0]?.properties.id;
+      setHoveredIncident(previous => previous && id ? { id, x: event.point.x, y: event.point.y } : null);
+    });
     map.on("click", "roadsafe-clusters", async (event) => {
       const feature = map.queryRenderedFeatures(event.point, {
         layers: ["roadsafe-clusters"],
@@ -579,6 +593,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
       const feature = event.features?.[0];
       if (!feature) return;
 
+      setHoveredIncident(null);
       setSelectedReportId(feature.properties.id);
       setSelectedStation(null);
       focusIncident(feature.geometry.coordinates);
@@ -986,6 +1001,9 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
           <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2 rounded-lg border border-white/10 bg-darkBg/90 backdrop-blur px-3 py-2 text-[10px] text-slate-300 max-w-[calc(100%-64px)]" aria-label="Accident severity colors">
             <span>Severity</span>{[["Low", "#86efac"], ["Medium", "#facc15"], ["High", "#fb923c"], ["Critical", "#fb7185"], ["Unknown", "#94a3b8"]].map(([label, color]) => <span key={label} className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />{label}</span>)}
           </div>
+          {hoveredRecord && <div className="absolute z-20 pointer-events-none w-[280px] max-w-[calc(100%-24px)]" style={{ left: `clamp(12px, ${hoveredIncident.x + 18}px, calc(100% - 292px))`, top: `clamp(12px, ${hoveredIncident.y + 18}px, max(12px, calc(100% - 280px)))` }}>
+            <MapReportPreview report={hoveredRecord} />
+          </div>}
           <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
           <DispatchDrag mapRef={mapRef} ready={mapReady}
             getPersonnel={(station) => personnelByStation[station.id] ?? 1}

@@ -69,3 +69,26 @@ test('floating report card renders the selected record and labels fictional samp
   assert.equal(render(null), '')
   assert.ok(render({ ...reports[0], sample: false }, { onOpenReport: () => {} }).includes('Full details'))
 })
+
+
+test('every demo report has two distinct local photos and previews render photos with escaped descriptions', async () => {
+  const { reportsResponse } = await import('../src/data/reports.js')
+  const all = [...reports, ...reportsResponse.data]
+  const urls = new Set()
+  for (const report of all) {
+    assert.equal(report.evidence.length, 2)
+    assert.notEqual(report.evidence[0].url, report.evidence[1].url)
+    for (const file of report.evidence) {
+      urls.add(file.url)
+      assert.ok(readFileSync(new URL('../public' + file.url, import.meta.url)).length > 0)
+    }
+  }
+  assert.equal(urls.size, 5)
+  const Preview = module.exports.MapReportPreview
+  const html = renderToStaticMarkup(React.createElement(Preview, { report: { ...reports[0], description: '<script>unsafe</script>' } }))
+  assert.ok(html.includes(reports[0].evidence[0].url))
+  assert.ok(html.includes('&lt;script&gt;unsafe&lt;/script&gt;'))
+  assert.ok(!html.includes('<script>'))
+  const empty = renderToStaticMarkup(React.createElement(Preview, { report: { ...reports[0], evidence: [] } }))
+  assert.ok(empty.includes('No incident photos available.'))
+})

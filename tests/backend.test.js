@@ -17,6 +17,7 @@ test('coordinate-only mobile reports and unknown injury counts are accepted with
 
 test('private storage paths are exchanged for expiring evidence URLs', async () => {
   const response = fixture()
+  response.data.forEach(report => { report.evidence = [] })
   response.data[0].evidence = [{ id: 'photo', fileName: 'photo.jpg', mimeType: 'image/jpeg', storagePath: 'owner/report/photo.jpg', url: null }]
   let signedPaths
   const client = {

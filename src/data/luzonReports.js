@@ -1,3 +1,4 @@
+import { demoEvidence } from './demoEvidence.js'
 import { ACCIDENT_CATEGORIES, REPORT_STATUSES, REPORT_STATUS, VERIFIED_STATUSES, ROLES, parseReportsResponse } from '../models/report.js'
 
 // Fictional incidents at representative city-center coordinates, not actual
@@ -68,7 +69,7 @@ export const luzonReportsResponse = parseReportsResponse({
           : [{ type: ['Sedan', 'Van', 'Light truck', 'Jeepney', 'Car'][index % 5], count: 1 }],
       injuries: severity === 1 ? { status: 'none', injuredCount: 0, fatalityCount: 0 }
         : { status: 'injured', injuredCount: severity === 3 ? 2 : 1, fatalityCount: 0 },
-      severity, evidence: [], status,
+      severity, evidence: demoEvidence(index), status,
       assignedOfficerId: [REPORT_STATUS.ASSIGNED, REPORT_STATUS.IN_PROGRESS].includes(status) ? 'luzon-sample-officer' : null,
       officialRemarks: verified ? 'Sample-only review completed; not a real emergency record.' : '',
       verification: { verifiedBy: verified ? 'luzon-sample-admin' : null, verifiedAt: verified ? new Date(Date.parse(occurredAt) + 15 * 60000).toISOString() : null },

@@ -1,3 +1,4 @@
+import { demoEvidence } from './demoEvidence.js'
 import { REPORT_STATUSES, REPORT_STATUS, ROLES, ACCIDENT_CATEGORIES, VERIFIED_STATUSES, parseReportsResponse } from '../models/report.js'
 
 // One deterministic API-shaped fixture. All web views use App's copy of this response.
@@ -38,7 +39,7 @@ function makeReport(index, center, coordinates) {
     vehicles: [{ type: index % 2 ? 'Motorcycle' : 'Car', count: index % 3 === 0 ? 2 : 1 }],
     injuries: index % 3 === 0 ? { status: 'injured', injuredCount: 1, fatalityCount: 0 }
       : index % 3 === 1 ? { status: 'none', injuredCount: 0, fatalityCount: 0 } : { status: 'unknown', injuredCount: null, fatalityCount: null },
-    severity: index % 3 === 0 ? 2 : 1, evidence: [], status,
+    severity: index % 3 === 0 ? 2 : 1, evidence: demoEvidence(index), status,
     assignedOfficerId: official ? index % 2 ? 'officer-mark' : 'officer-juan' : null,
     officialRemarks: official ? 'Demo record reviewed by the traffic desk.' : '',
     verification: { verifiedAt: official ? `2026-10-${day}T10:10:00+08:00` : null, verifiedBy: official ? 'admin-demo' : null },

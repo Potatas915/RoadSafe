@@ -6,6 +6,23 @@ import { ACCIDENT_ICON_PATHS } from '../models/accidentIcons.js'
 const label = 'text-slate-400 block text-[10px] uppercase font-semibold'
 const box = 'bg-darkBg p-2.5 rounded-xl border border-darkBorder space-y-1'
 
+function IncidentPhotos({ report, compact = false }) {
+ const photos = report.evidence.filter(file => file.url && file.mimeType.startsWith('image/'))
+ return photos.length ? <div className="flex gap-2 overflow-x-auto" aria-label="Incident photos">
+ {photos.map(file => <img key={file.id} src={file.url} alt={file.fileName} loading="lazy" className={compact ? 'h-28 min-w-0 flex-1 object-cover rounded-lg' : 'h-36 w-48 shrink-0 object-cover rounded-lg'} />)}
+ </div> : <p className="text-xs text-slate-400">No incident photos available.</p>
+}
+
+export function MapReportPreview({ report }) {
+ const categories = useCategories()
+ return <section aria-label="Incident hover preview" className="p-3 space-y-2 rounded-xl border border-darkBorder bg-darkCard/95 backdrop-blur shadow-2xl text-xs text-slate-300">
+ <h3 className="font-semibold text-white">{categories.find(item => item.id === report.categoryId)?.label ?? 'Incident'}</h3>
+ <IncidentPhotos report={report} compact />
+ <p className="line-clamp-3 leading-relaxed">{report.description}</p>
+ <p className="text-[10px] text-slate-400">Click the icon for details{report.evidence.some(file => file.id.startsWith('demo-photo-')) ? ' · Illustrative demo photos' : ''}</p>
+ </section>
+}
+
 export default function MapReportCard({ report, onClose, onZoom, onOpenReport }) {
   const ACCIDENT_CATEGORIES = useCategories()
 
@@ -25,6 +42,7 @@ export default function MapReportCard({ report, onClose, onZoom, onOpenReport })
       <button type="button" onClick={onClose} aria-label="Close report card" className="text-slate-400 hover:text-white"><i className="fa-solid fa-xmark text-lg" /></button>
     </header>
     <div className="p-3 space-y-2 text-xs">
+      <IncidentPhotos report={report} />
       <div className="grid grid-cols-3 gap-2 border-b border-darkBorder pb-3">
         <div><span className={label}>People injured</span><p className="text-lg text-white">{injuries.injuredCount ?? '?'}</p></div>
         <div><span className={label}>Vehicles</span><p className="text-lg text-white">{reportedVehicles(report) ?? '?'}</p></div>
