@@ -44,11 +44,26 @@ export default function AccountsView({ client, currentUserId }) {
     {error && <p role="alert" className="text-red-300">{error} Refresh before retrying a stale edit.</p>}
     {message && <p role="status" className="text-emerald-300">{message}</p>}
     {loading && <p role="status">Loading accounts…</p>}
-    <AccountsTable accounts={page.data} onEdit={setSelected} disabled={saving || loading} />
+    <AccountGroups accounts={page.data} onEdit={setSelected} disabled={saving || loading} />
     {!loading && !page.data.length && <p>No matching accounts.</p>}
     <div className="flex gap-3 text-sm items-center"><button disabled={offset === 0 || loading || saving} onClick={() => { setSelected(null); setOffset(offset - 50) }}>Previous</button><span>{page.total ? `${offset + 1}–${offset + page.data.length} of ${page.total}` : '0 accounts'}</span><button disabled={offset + 50 >= page.total || loading || saving} onClick={() => { setSelected(null); setOffset(offset + 50) }}>Next</button></div>
     {selected && <AccountEditor key={`${selected.id}:${selected.version}`} account={selected} currentUserId={currentUserId} onSave={save} onCancel={() => setSelected(null)} saving={saving} />}
   </main>
+}
+
+export function AccountGroups({ accounts, onEdit, disabled }) {
+  const groups = [
+    { title: 'Users', accounts: accounts.filter(account => account.role === 'Public' && account.requestedAccountType !== 'Officer') },
+    { title: 'Enforcers', accounts: accounts.filter(account => account.role === 'Officer' || (account.role === 'Public' && account.requestedAccountType === 'Officer')) },
+    { title: 'Administrators', accounts: accounts.filter(account => account.role === 'Admin') },
+  ]
+  return <div className="space-y-4">
+    <p className="text-xs text-slate-400">Accounts on this page, grouped by account type. Enforcers includes applications awaiting approval.</p>
+    {groups.map(group => <section key={group.title} aria-label={`${group.title} accounts`} className="rounded-xl border border-darkBorder bg-darkCard p-4">
+      <h2 className="font-semibold mb-2">{group.title} <span className="text-sm text-slate-400">({group.accounts.length})</span></h2>
+      {group.accounts.length ? <AccountsTable accounts={group.accounts} onEdit={onEdit} disabled={disabled} /> : <p className="text-sm text-slate-400">No {group.title.toLowerCase()} on this page.</p>}
+    </section>)}
+  </div>
 }
 
 export function AccountsTable({ accounts, onEdit, disabled }) {

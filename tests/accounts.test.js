@@ -14,6 +14,32 @@ import { parseReportsResponse } from '../src/models/report.js'
 
 const account = { id: 'officer-id', name: '<Officer>', unit: 'Unit 1', responderType: 'police', role: 'Officer', enabled: true, version: 3, username: 'officer_name' }
 const fixture = () => ({ ...structuredClone(reportsResponse.data[0]), status: 'Submitted', assignedOfficerId: null, verification: { verifiedAt: null, verifiedBy: null }, isDuplicate: false })
+test('account groups separate public users, enforcers and administrators including pending applicants', () => {
+  const { AccountGroups } = component('../src/components/AccountsView.jsx')
+  const accounts = [
+    { ...account, id: 'public', name: 'Public user', role: 'Public' },
+    { ...account, id: 'officer', name: 'Approved enforcer', enabled: false },
+    { ...account, id: 'applicant', name: 'Pending enforcer', role: 'Public', requestedAccountType: 'Officer' },
+    { ...account, id: 'admin', name: 'Administrator', role: 'Admin', requestedAccountType: 'Officer' },
+  ]
+  const html = renderToStaticMarkup(React.createElement(AccountGroups, { accounts }))
+  const users = html.match(/<section aria-label="Users accounts"[\s\S]*?<\/section>/)[0]
+  const enforcers = html.match(/<section aria-label="Enforcers accounts"[\s\S]*?<\/section>/)[0]
+  const admins = html.match(/<section aria-label="Administrators accounts"[\s\S]*?<\/section>/)[0]
+  assert.match(users, /Public user/)
+  assert.doesNotMatch(users, /Approved enforcer|Pending enforcer|Administrator/)
+  assert.match(enforcers, /Approved enforcer/)
+  assert.match(enforcers, /Pending enforcer/)
+  assert.match(enforcers, /awaiting Admin verification/)
+  assert.match(enforcers, /Suspended/)
+  assert.doesNotMatch(enforcers, /Public user|Administrator/)
+  assert.match(admins, /Administrator/)
+  assert.equal((html.match(/Edit account/g) ?? []).length, 4)
+  const empty = renderToStaticMarkup(React.createElement(AccountGroups, { accounts: [] }))
+  assert.match(empty, /No users on this page/)
+  assert.match(empty, /No enforcers on this page/)
+})
+
 test('Admin sees pending enforcer applications and verification instructions', () => {
   const { AccountsTable, AccountEditor } = component('../src/components/AccountsView.jsx', name => name === '../backend/accounts.js' ? { loadAccounts, saveAccount } : undefined)
   const applicant = { ...account, role: 'Public', requestedAccountType: 'Officer' }
