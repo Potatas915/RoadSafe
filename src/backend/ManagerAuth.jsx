@@ -16,9 +16,12 @@ export default function ManagerAuth({ children }) {
   useEffect(() => {
     let active = true
     let generation = 0
-    async function apply(next, initial = true) {
+    let appliedUserId = null
+    async function apply(next) {
       const current = ++generation
-      if (initial) setLoading(true)
+      // Focus and token refresh can repeat sign-in for the same account.
+      // Recheck access without unmounting its dashboard and map.
+      if (next?.user.id !== appliedUserId) setLoading(true)
       if (next) {
         const result = await backend.from('user_roles').select('role,enabled,version').eq('user_id', next.user.id).single()
         if (!active || current !== generation) return
@@ -27,7 +30,7 @@ export default function ManagerAuth({ children }) {
         setEnabled(result.data?.enabled !== false)
         setError(result.error ? 'Could not confirm current staff access. Retry sign-in or refresh.' : '')
       } else setAllowed(false)
-      if (active && current === generation) { setSession(next); setLoading(false) }
+      if (active && current === generation) { appliedUserId = next?.user.id ?? null; setSession(next); setLoading(false) }
     }
     backend.auth.getSession().then(({ data, error }) => {
       if (error && active) { setError(error.message); setLoading(false); return }
@@ -41,7 +44,7 @@ export default function ManagerAuth({ children }) {
       backend.auth.getSession().then(({ data, error }) => {
         if (!active) return
         if (error) { setAllowed(false); setError('Could not confirm the session. Sign in again.'); return }
-        void apply(data.session, false)
+        void apply(data.session)
       })
     }, 15000)
     return () => { active = false; clearInterval(timer); data.subscription.unsubscribe() }

@@ -103,26 +103,41 @@ test('Officer workspace renders shared queue and assignment navigation without a
 
 test('actual staff gate rechecks suspension and demotion on retained sessions', async () => {
   const states = [], effects = [], timers = []
-  let index = 0, role = { role:'Admin',enabled:true,version:1 }
+  let index = 0, role = { role:'Admin',enabled:true,version:1 }, authChanged, finishCheck
   const session = { user:{ id:'staff-id' } }
   const hooks = {
     useState: initial => { const slot=index++; if (!(slot in states)) states[slot]=initial; return [states[slot],value => { states[slot]=value }] },
     useEffect: callback => { effects.push(callback) },
   }
   const client = {
-    from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data:role,error:null }) }) }) }),
-    auth: { getSession:async () => ({ data:{ session } }), onAuthStateChange:() => ({ data:{ subscription:{ unsubscribe() {} } } }) },
+    from: () => ({ select: () => ({ eq: () => ({ single: async () => {
+      if (finishCheck) await new Promise(resolve => { finishCheck = resolve })
+      return { data:role,error:null }
+    } }) }) }),
+    auth: { getSession:async () => ({ data:{ session } }), onAuthStateChange:callback => { authChanged = callback; return { data:{ subscription:{ unsubscribe() {} } } } } },
   }
   const { default: Gate } = component('../src/backend/ManagerAuth.jsx',name => name === 'react' ? hooks : name === './client.js' ? { backend:client } : undefined,
     { setInterval: callback => { timers.push(callback); return 1 },clearInterval() {},setTimeout })
   const render = () => { index=0; return Gate({ children:user => ({ admitted:user.appRole }) }) }
   render(); const cleanup=effects[0](); await new Promise(resolve => setTimeout(resolve,0))
   assert.equal(render().admitted,'Admin')
+  for (const event of ['SIGNED_IN', 'TOKEN_REFRESHED']) {
+    finishCheck = true
+    authChanged(event, session)
+    await new Promise(resolve => setTimeout(resolve,0))
+    assert.equal(render().admitted,'Admin', `${event} keeps dashboard mounted while access is checked`)
+    finishCheck(); finishCheck = null
+    await new Promise(resolve => setTimeout(resolve,0))
+    assert.equal(render().admitted,'Admin')
+  }
   role={ role:'Officer',enabled:true,version:2 }; timers[0](); await new Promise(resolve => setTimeout(resolve,0))
   assert.equal(render().admitted,'Officer')
   role={ role:'Officer',enabled:false,version:3 }; timers[0](); await new Promise(resolve => setTimeout(resolve,0))
   assert.match(renderToStaticMarkup(render()),/suspended/)
   role={ role:'Public',enabled:true,version:4 }; timers[0](); await new Promise(resolve => setTimeout(resolve,0))
   assert.match(renderToStaticMarkup(render()),/does not have active staff access/)
+  authChanged('SIGNED_OUT', null)
+  await new Promise(resolve => setTimeout(resolve,0))
+  assert.match(renderToStaticMarkup(render()),/Sign in to review reports/)
   cleanup()
 })

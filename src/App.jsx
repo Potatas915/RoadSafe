@@ -153,7 +153,7 @@ function ManagerDashboard({ signedInUser }) {
   }
   return (
     <CategoryContext.Provider value={categories}><div data-tactical={view === 'map-view'} className="roadsafe-shell bg-darkBg text-slate-100 font-sans antialiased h-screen flex overflow-hidden">
-      <Sidebar view={view} onChange={setView} pendingCount={reportSummary(reports).pending} currentUser={currentUser} live={live} />
+      <Sidebar view={view} onChange={(nextView) => { if (nextView !== view) setActiveReport(null); setView(nextView) }} pendingCount={reportSummary(reports).pending} currentUser={currentUser} live={live} />
       <div className="flex-1 flex flex-col relative overflow-hidden bg-darkBg min-w-0">
         <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={live ? () => backend.auth.signOut() : undefined} live={live} notifications={notifications} unreadCount={unreadCount} onReadNotifications={markRead} notificationStorageWarning={storageWarning} onOpenNotificationReport={(id) => { setDemoPreview(false); setView('reports-view'); setActiveReport(id) }} />
         <p className="sr-only" role="status">{source}</p>
@@ -167,7 +167,9 @@ function ManagerDashboard({ signedInUser }) {
             </select>
           </label>
         </div>}
-        {view === 'map-view' && <MapView searchLocation={searchLocation} reportRecords={reports} users={users} onOpenReport={setActiveReport} enforcerClient={live ? backend : null} onAssigned={refresh} />}
+        <div style={{ display: view === 'map-view' ? 'flex' : 'none', flex: 1, minHeight: 0, minWidth: 0 }}>
+          <MapView searchLocation={searchLocation} reportRecords={reports} users={users} onOpenReport={setActiveReport} enforcerClient={live ? backend : null} onAssigned={refresh} />
+        </div>
         {view === 'dashboard-view' && <DashboardView reports={displayed.data} onOpenReport={setActiveReport} />}
         {view === 'reports-view' && <ReportsView reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} selectedReportId={activeReport} detailPanel={selectedReport ? <ReportModal embedded key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} /> : null} />}
         {view === 'officers-view' && <OfficersView reports={reports} users={users} onOpenReport={setActiveReport} />}
