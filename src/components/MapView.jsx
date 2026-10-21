@@ -1121,7 +1121,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
           <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2 rounded-lg border border-white/10 bg-darkBg/90 backdrop-blur px-3 py-2 text-[10px] text-slate-300 max-w-[calc(100%-64px)]" aria-label="Accident severity colors">
             <span>Severity</span>{[["Low", "#86efac"], ["Medium", "#facc15"], ["High", "#fb923c"], ["Critical", "#fb7185"], ["Unknown", "#94a3b8"]].map(([label, color]) => <span key={label} className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />{label}</span>)}
           </div>
-          {hoveredRecord && <div className="absolute z-20 pointer-events-none w-[280px] max-w-[calc(100%-24px)]" style={{ left: `clamp(12px, ${hoveredIncident.x + 18}px, calc(100% - 292px))`, top: `clamp(12px, ${hoveredIncident.y + 18}px, max(12px, calc(100% - 280px)))` }}>
+          {hoveredRecord && !selectedRecord && <div className="absolute z-20 pointer-events-none w-[280px] max-w-[calc(100%-24px)]" style={{ left: `clamp(12px, ${hoveredIncident.x + 18}px, calc(100% - 292px))`, top: `clamp(12px, ${hoveredIncident.y + 18}px, max(12px, calc(100% - 280px)))` }}>
             <MapReportPreview report={hoveredRecord} />
           </div>}
           <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
