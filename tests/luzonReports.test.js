@@ -71,13 +71,13 @@ test('floating report card renders the selected record and labels fictional samp
 })
 
 
-test('every demo report has two distinct local photos and previews render photos with escaped descriptions', async () => {
+test('every demo report has three distinct local photos and previews render photos with escaped descriptions', async () => {
   const { reportsResponse } = await import('../src/data/reports.js')
   const all = [...reports, ...reportsResponse.data]
   const urls = new Set()
   for (const report of all) {
-    assert.equal(report.evidence.length, 2)
-    assert.notEqual(report.evidence[0].url, report.evidence[1].url)
+    assert.equal(report.evidence.length, 3)
+    assert.equal(new Set(report.evidence.map(file => file.url)).size, 3)
     for (const file of report.evidence) {
       urls.add(file.url)
       assert.ok(readFileSync(new URL('../public' + file.url, import.meta.url)).length > 0)

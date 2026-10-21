@@ -1,3 +1,4 @@
+import IncidentPhotoCarousel from './IncidentPhotoCarousel.js'
 import { useCategoryLabel, useCategories } from './CategoryContext.js'
 import { canCorrectReport, correctionDraft, correctionValues, VEHICLE_TYPES } from '../models/reportCorrections.js'
 import { officerStatuses } from '../models/staffAccess.js'
@@ -93,7 +94,7 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
             {onDuplicate && <button type="button" disabled={saving} onClick={() => duplicateAction(true)} className="px-3 py-2 bg-slate-800 rounded-lg disabled:opacity-50">Clear duplicate flag and return to review</button>}
           </section>}
           <section><h3 className="text-slate-400 mb-2">Photo evidence / attachments</h3>
-            {!report.evidence.length ? <p>No evidence attached.</p> : <ul className="space-y-2">{report.evidence.map((file) => <li key={file.id}>{!file.url ? <span>Photo temporarily unavailable: {file.fileName}</span> : <a href={file.url} target="_blank" rel="noreferrer" className="text-orange-300 underline">{file.fileName}</a>}{file.url && file.mimeType.startsWith('image/') && <img src={file.url} alt={file.fileName} className="mt-2 max-h-48 rounded-lg" />}</li>)}</ul>}
+            {!report.evidence.length ? <p>No evidence attached.</p> : <><IncidentPhotoCarousel evidence={report.evidence} /><ul className="space-y-2">{report.evidence.filter(file => !file.url || !file.mimeType.startsWith('image/')).map((file) => <li key={file.id}>{!file.url ? <span>Photo temporarily unavailable: {file.fileName}</span> : <a href={file.url} target="_blank" rel="noreferrer" className="text-orange-300 underline">{file.fileName}</a>}{file.url && file.mimeType.startsWith('image/') && <img src={file.url} alt={file.fileName} className="mt-2 max-h-48 rounded-lg" />}</li>)}</ul></>}
           </section>
           {onCorrect && <section className="border-t border-darkBorder pt-4">
             <h3 className="font-semibold mb-2">Incident fact corrections</h3>

@@ -1,3 +1,4 @@
+import IncidentPhotoCarousel from './IncidentPhotoCarousel.js'
 import { useCategories } from './CategoryContext.js'
 import { formatDateTime } from '../models/report.js'
 import { caseSeverity, reportedVehicles } from '../models/caseSeverity.js'
@@ -7,10 +8,7 @@ const label = 'text-slate-400 block text-[10px] uppercase font-semibold'
 const box = 'bg-darkBg p-2.5 rounded-xl border border-darkBorder space-y-1'
 
 function IncidentPhotos({ report, compact = false }) {
- const photos = report.evidence.filter(file => file.url && file.mimeType.startsWith('image/'))
- return photos.length ? <div className="flex gap-2 overflow-x-auto" aria-label="Incident photos">
- {photos.map(file => <img key={file.id} src={file.url} alt={file.fileName} loading="lazy" className={compact ? 'h-28 min-w-0 flex-1 object-cover rounded-lg' : 'h-36 w-48 shrink-0 object-cover rounded-lg'} />)}
- </div> : <p className="text-xs text-slate-400">No incident photos available.</p>
+ return <IncidentPhotoCarousel evidence={report.evidence} compact={compact} />
 }
 
 export function MapReportPreview({ report, summary = false }) {

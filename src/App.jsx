@@ -1,3 +1,4 @@
+import './components/IncidentPhotoCarousel.css'
 import './components/ReportsView.css'
 import DashboardReportSummary from './components/DashboardReportSummary.jsx'
 import AccountsView from './components/AccountsView.jsx'
