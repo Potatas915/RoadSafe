@@ -1,3 +1,4 @@
+import './components/ReportsView.css'
 import DashboardReportSummary from './components/DashboardReportSummary.jsx'
 import AccountsView from './components/AccountsView.jsx'
 import OfficerWorkspace from './components/OfficerWorkspace.jsx'

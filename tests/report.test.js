@@ -169,3 +169,19 @@ test('management embeds the existing review form without a modal dialog', () => 
   assert.ok(table.includes('Sort reports'))
   assert.ok(table.includes('Selected workspace'))
 })
+
+test('report table shows labeled coordinates when the place name is missing', () => {
+  const table = location => renderToStaticMarkup(React.createElement(ReportsView, { reports: [{ ...first, location }], users: reportsResponse.included.users }))
+  const coordinates = { latitude: 14.85234, longitude: 120.81234 }
+  for (const address of [null, '', '   ']) {
+    const html = table({ address, coordinates })
+    assert.ok(html.includes('Lat: 14.85234'))
+    assert.ok(html.includes('Lng: 120.81234'))
+    assert.ok(!html.includes('Confirmed map location'))
+  }
+  assert.ok(table({ address: 'Malolos', coordinates }).includes('Malolos'))
+  assert.ok(!table({ address: 'Malolos', coordinates }).includes('Lat:'))
+  assert.ok(table({ address: null, coordinates: null }).includes('Location unavailable'))
+  const zero = table({ address: null, coordinates: { latitude: 0, longitude: 0 } })
+  assert.ok(zero.includes('Lat: 0.00000') && zero.includes('Lng: 0.00000'))
+})
