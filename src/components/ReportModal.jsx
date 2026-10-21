@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { REPORT_STATUSES, REPORT_STATUS, ROLES, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
 import { DUPLICATE_REVIEW_STATUSES, duplicateOriginals } from '../models/reportDuplicates.js'
 
-export default function ReportModal({ report, users, onSave, onClose, live = false, reports = [], onDuplicate, onOpenOriginal, onCorrect, actorRole = ROLES.ADMIN, viewerId }) {
+export default function ReportModal({ report, users, onSave, onClose, live = false, reports = [], onDuplicate, onOpenOriginal, onCorrect, actorRole = ROLES.ADMIN, viewerId, embedded = false }) {
   const categoryLabel = useCategoryLabel()
   const categories = useCategories()
   const [facts, setFacts] = useState(() => correctionDraft(report))
@@ -23,10 +23,11 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
   const [duplicateReason, setDuplicateReason] = useState('')
   const dialog = useRef(null)
   useEffect(() => {
+    if (embedded) return
     const previous = document.activeElement
     dialog.current.showModal()
     return () => { previous?.focus() }
-  }, [])
+  }, [embedded])
   async function submit(event) {
     event.preventDefault()
     if (saving) return
@@ -56,8 +57,9 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
   }
   const control = 'w-full bg-darkBg border border-darkBorder rounded-xl p-2.5 text-slate-200'
   const coords = report.location.coordinates
+  const Container = embedded ? 'section' : 'dialog'
   return (
-    <dialog ref={dialog} aria-labelledby="report-title" onCancel={(event) => { event.preventDefault(); onClose() }} className="m-auto bg-darkCard text-slate-100 border border-darkBorder rounded-2xl w-full max-w-2xl max-h-[90vh] p-0 backdrop:bg-slate-950/80">
+    <Container ref={dialog} aria-labelledby="report-title" onCancel={(event) => { event.preventDefault(); onClose() }} className={embedded ? "bg-darkCard text-slate-100 border border-darkBorder rounded-2xl w-full min-w-0 overflow-y-auto xl:max-h-[75vh]" : "m-auto bg-darkCard text-slate-100 border border-darkBorder rounded-2xl w-full max-w-2xl max-h-[90vh] p-0 backdrop:bg-slate-950/80"}>
       <form onSubmit={submit} className="text-xs">
         <header className="p-5 border-b border-darkBorder flex justify-between gap-3">
           <h2 id="report-title" className="font-bold text-sm">Report Details: <span className="text-orange-400">{report.id}</span></h2>
@@ -123,7 +125,7 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
         </div>
         <footer className="p-4 border-t border-darkBorder flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 rounded-xl">Cancel</button><button type="submit" disabled={saving || officer && !statusChoices.length} className="px-4 py-2 bg-orange-600 rounded-xl disabled:opacity-50">{saving ? "Saving…" : officer && statusChoices[0] === 'Verified' ? 'Verify report' : live ? "Save changes" : "Save session changes"}</button></footer>
       </form>
-    </dialog>
+    </Container>
   )
 }
 

@@ -116,7 +116,7 @@ test('admin reporter info shows submitted full name/contact, escapes text and ha
   assert.ok(modal(missing).includes('Not provided'))
   assert.ok(table([missing]).includes('Name not provided'))
   assert.ok(table([missing]).includes('Contact not provided'))
-  assert.ok(table([]).includes('colSpan="8"'))
+  assert.ok(table([]).includes('colSpan="9"'))
 })
 
 // Execute the real layer builder: a bundler accepts undefined identifiers in
@@ -158,3 +158,14 @@ test('structured vehicle states validate and render without treating unknown as 
   assert.ok(validateReport({...first,vehicles:[{type:'car',count:0}]}).length);
   assert.ok(validateReport({...first,vehicles:[{type:'car',count:1.5}]}).length);
 });
+
+test('management embeds the existing review form without a modal dialog', () => {
+  const html = renderToStaticMarkup(React.createElement(ReportModal, { report: first, users: reportsResponse.included.users, embedded: true }))
+  assert.ok(!html.includes('<dialog'))
+  assert.ok(html.includes('Report Details:'))
+  assert.ok(html.includes('Save session changes'))
+  const table = renderToStaticMarkup(React.createElement(ReportsView, { reports: reportsResponse.data, users: reportsResponse.included.users, detailPanel: React.createElement('section', null, 'Selected workspace') }))
+  assert.ok(table.includes('Awaiting review'))
+  assert.ok(table.includes('Sort reports'))
+  assert.ok(table.includes('Selected workspace'))
+})

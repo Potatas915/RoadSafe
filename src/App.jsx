@@ -1,3 +1,4 @@
+import DashboardReportSummary from './components/DashboardReportSummary.jsx'
 import AccountsView from './components/AccountsView.jsx'
 import OfficerWorkspace from './components/OfficerWorkspace.jsx'
 import { useCallback, useEffect, useState } from 'react'
@@ -166,12 +167,13 @@ function ManagerDashboard({ signedInUser }) {
         </div>}
         {view === 'map-view' && <MapView searchLocation={searchLocation} reportRecords={reports} users={users} onOpenReport={setActiveReport} enforcerClient={live ? backend : null} onAssigned={refresh} />}
         {view === 'dashboard-view' && <DashboardView reports={displayed.data} onOpenReport={setActiveReport} />}
-        {view === 'reports-view' && <ReportsView reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} />}
+        {view === 'reports-view' && <ReportsView reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} selectedReportId={activeReport} detailPanel={selectedReport ? <ReportModal embedded key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} /> : null} />}
         {view === 'officers-view' && <OfficersView reports={reports} users={users} onOpenReport={setActiveReport} />}
         {view === 'accounts-view' && live && <AccountsView client={backend} currentUserId={signedInUser?.id} />}
         {view === 'analytics-view' && <AnalyticsView reports={reports} users={users} source={live ? 'Shared reports' : 'Demo / session preview'} />}
       </div>
-      {selectedReport && <ReportModal key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} />}
+      {selectedReport && view === 'dashboard-view' && <DashboardReportSummary key={selectedReport.id} report={selectedReport} onClose={() => setActiveReport(null)} onManage={() => setView('reports-view')} />}
+      {selectedReport && !['dashboard-view', 'reports-view'].includes(view) && <ReportModal key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} />}
     </div></CategoryContext.Provider>
   )
 }

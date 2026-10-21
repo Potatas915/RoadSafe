@@ -13,13 +13,13 @@ function IncidentPhotos({ report, compact = false }) {
  </div> : <p className="text-xs text-slate-400">No incident photos available.</p>
 }
 
-export function MapReportPreview({ report }) {
+export function MapReportPreview({ report, summary = false }) {
  const categories = useCategories()
  return <section aria-label="Incident hover preview" className="p-3 space-y-2 rounded-xl border border-darkBorder bg-darkCard/95 backdrop-blur shadow-2xl text-xs text-slate-300">
  <h3 className="font-semibold text-white">{categories.find(item => item.id === report.categoryId)?.label ?? 'Incident'}</h3>
  <IncidentPhotos report={report} compact />
  <p className="line-clamp-3 leading-relaxed">{report.description}</p>
- <p className="text-[10px] text-slate-400">Click the icon for details{report.evidence.some(file => file.id.startsWith('demo-photo-')) ? ' · Illustrative demo photos' : ''}</p>
+ <p className="text-[10px] text-slate-400">{summary ? 'Open Report Management to review this record' : 'Click the icon for details'}{report.evidence.some(file => file.id.startsWith('demo-photo-')) ? ' · Illustrative demo photos' : ''}</p>
  </section>
 }
 
