@@ -14,7 +14,7 @@ function IncidentPhotos({ report, compact = false }) {
 export function MapReportPreview({ report, summary = false }) {
  const categories = useCategories()
  return <section aria-label="Incident hover preview" className="p-3 space-y-2 rounded-xl border border-darkBorder bg-darkCard/95 backdrop-blur shadow-2xl text-xs text-slate-300">
- <h3 className="font-semibold text-white">{categories.find(item => item.id === report.categoryId)?.label ?? 'Incident'}</h3>
+ <h3 className="font-semibold text-strong">{categories.find(item => item.id === report.categoryId)?.label ?? 'Incident'}</h3>
  <IncidentPhotos report={report} compact />
  <p className="line-clamp-3 leading-relaxed">{report.description}</p>
  <p className="text-[10px] text-slate-400">{summary ? 'Open Report Management to review this record' : 'Click the icon for details'}{report.evidence.some(file => file.id.startsWith('demo-photo-')) ? ' · Illustrative demo photos' : ''}</p>
@@ -33,22 +33,22 @@ export default function MapReportCard({ report, onClose, onZoom, onOpenReport })
     <header className="p-3 border-b border-darkBorder flex items-start gap-3 bg-slate-900/50 rounded-t-2xl">
       <span className="w-9 h-9 shrink-0 rounded-xl border flex items-center justify-center" style={{ color: severity.color, backgroundColor: `${severity.color}15`, borderColor: `${severity.color}40` }}><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" fillRule="evenodd"><path d={ACCIDENT_ICON_PATHS[report.categoryId] ?? ACCIDENT_ICON_PATHS.other} /></svg></span>
       <div className="min-w-0 flex-1">
-        <h3 className="font-bold text-sm text-white">{category.label}</h3>
+        <h3 className="font-bold text-sm text-strong">{category.label}</h3>
         <p className="font-mono text-[10px] text-orange-400 break-all">{report.id}</p>
         <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/10 text-orange-400">{report.status}</span>
       </div>
-      <button type="button" onClick={onClose} aria-label="Close report card" className="text-slate-400 hover:text-white"><i className="fa-solid fa-xmark text-lg" /></button>
+      <button type="button" onClick={onClose} aria-label="Close report card" className="text-slate-400 hover:text-strong"><i className="fa-solid fa-xmark text-lg" /></button>
     </header>
     <div className="p-3 space-y-2 text-xs">
       <IncidentPhotos report={report} />
       <div className="grid grid-cols-3 gap-2 border-b border-darkBorder pb-3">
-        <div><span className={label}>People injured</span><p className="text-lg text-white">{injuries.injuredCount ?? '?'}</p></div>
-        <div><span className={label}>Vehicles</span><p className="text-lg text-white">{reportedVehicles(report) ?? '?'}</p></div>
+        <div><span className={label}>People injured</span><p className="text-lg text-strong">{injuries.injuredCount ?? '?'}</p></div>
+        <div><span className={label}>Vehicles</span><p className="text-lg text-strong">{reportedVehicles(report) ?? '?'}</p></div>
         <div title={severity.explanation}><span className={label}>Severity index</span><p className="text-lg" style={{ color: severity.color }}>{severity.score === null ? 'Unknown' : `${severity.score}%`} <span className="text-[10px]">{severity.score === null ? '' : severity.label}</span></p></div>
       </div>
       {report.sample && <p className="text-[11px] text-amber-400">Fictional sample · approximate city-center location</p>}
       <div className="space-y-1">
-        <p className="font-medium text-white">{report.location.address || 'Address not available'}</p>
+        <p className="font-medium text-strong">{report.location.address || 'Address not available'}</p>
         {report.region && <p className="text-slate-400 text-[11px]">{report.region}</p>}
         <p className="font-mono text-orange-400 text-[11px]">{coordinates.latitude.toFixed(4)}° N, {coordinates.longitude.toFixed(4)}° E</p>
       </div>

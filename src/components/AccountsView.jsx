@@ -33,13 +33,13 @@ export default function AccountsView({ client, currentUserId }) {
     } catch (failure) { setError(failure.message) }
     finally { setSaving(false) }
   }
-  return <main className="flex-1 p-6 overflow-y-auto space-y-4">
-    <h1 className="text-xl font-bold">Account management</h1>
-    <p className="text-sm text-slate-400">Manage existing registered accounts. Reassign active cases before suspending or removing an Officer. Account creation, deletion and password recovery are separate.</p>
+  return <main className="dx-page flex-1 p-4 md:p-6 overflow-y-auto space-y-5">
+    <h1 className="text-2xl font-semibold tracking-tight text-strong">Account management</h1>
+    <p className="max-w-3xl text-sm text-slate-400">Manage existing registered accounts. Reassign active cases before suspending or removing an Officer. Account creation, deletion and password recovery are separate.</p>
     <form onSubmit={e => { e.preventDefault(); setSelected(null); setOffset(0); if (query === search.trim() && offset === 0) void reload(); else setQuery(search.trim()) }} className="flex gap-2">
-      <input aria-label="Search accounts" maxLength={120} placeholder="Name, username, unit or account ID" className="flex-1 bg-darkBg border border-darkBorder rounded-lg p-2" value={search} onChange={e => setSearch(e.target.value)} />
-      <button disabled={saving} className="bg-orange-700 rounded-lg px-4">Search</button>
-      <button type="button" disabled={saving || loading} onClick={() => { setSelected(null); void reload() }} className="bg-slate-800 rounded-lg px-4">Refresh</button>
+      <input aria-label="Search accounts" maxLength={120} placeholder="Name, username, unit or account ID" className="dx-input flex-1" value={search} onChange={e => setSearch(e.target.value)} />
+      <button disabled={saving} className="dx-btn dx-btn-primary dx-btn-inline">Search</button>
+      <button type="button" disabled={saving || loading} onClick={() => { setSelected(null); void reload() }} className="dx-btn dx-btn-inline">Refresh</button>
     </form>
     {error && <p role="alert" className="text-red-300">{error} Refresh before retrying a stale edit.</p>}
     {message && <p role="status" className="text-emerald-300">{message}</p>}
@@ -59,7 +59,7 @@ export function AccountGroups({ accounts, onEdit, disabled }) {
   ]
   return <div className="space-y-4">
     <p className="text-xs text-slate-400">Accounts on this page, grouped by account type. Enforcers includes applications awaiting approval.</p>
-    {groups.map(group => <section key={group.title} aria-label={`${group.title} accounts`} className="rounded-xl border border-darkBorder bg-darkCard p-4">
+    {groups.map(group => <section key={group.title} aria-label={`${group.title} accounts`} className="dx-card p-5">
       <h2 className="font-semibold mb-2">{group.title} <span className="text-sm text-slate-400">({group.accounts.length})</span></h2>
       {group.accounts.length ? <AccountsTable accounts={group.accounts} onEdit={onEdit} disabled={disabled} /> : <p className="text-sm text-slate-400">No {group.title.toLowerCase()} on this page.</p>}
     </section>)}
@@ -77,7 +77,7 @@ export function AccountEditor({ account, currentUserId, onSave, onCancel, saving
   const [reason, setReason] = useState('')
   const field = 'block w-full bg-darkBg border border-darkBorder rounded-lg p-2 mt-1'
   const self = account.id === currentUserId
-  return <form onSubmit={e => { e.preventDefault(); if (!saving) void onSave(draft, reason) }} className="p-4 rounded-xl border border-darkBorder space-y-3 bg-darkCard">
+  return <form onSubmit={e => { e.preventDefault(); if (!saving) void onSave(draft, reason) }} className="dx-card p-5 space-y-3">
     <h2 className="font-semibold">Edit {account.name}</h2>
     {account.requestedAccountType === 'Officer' && account.role === 'Public' && <p className="text-sm text-orange-300">Traffic enforcer applicant. Verify their identity and credentials, then select Officer, Police and Active access below to approve. Record your verification in the change reason. Leave Public to withhold approval.</p>}
     <fieldset disabled={saving} className="grid sm:grid-cols-2 gap-3">

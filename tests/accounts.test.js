@@ -142,7 +142,7 @@ test('actual staff gate rechecks suspension and demotion on retained sessions', 
     } }) }) }),
     auth: { getSession:async () => ({ data:{ session } }), onAuthStateChange:callback => { authChanged = callback; return { data:{ subscription:{ unsubscribe() {} } } } } },
   }
-  const { default: Gate } = component('../src/backend/ManagerAuth.jsx',name => name === 'react' ? hooks : name === './client.js' ? { backend:client } : undefined,
+  const { default: Gate } = component('../src/backend/ManagerAuth.jsx',name => name === 'react' ? hooks : name === './client.js' ? { backend:client } : name === '../components/AuthLanding.jsx' ? component('../src/components/AuthLanding.jsx') : undefined,
     { setInterval: callback => { timers.push(callback); return 1 },clearInterval() {},setTimeout })
   const render = () => { index=0; return Gate({ children:user => ({ admitted:user.appRole }) }) }
   render(); const cleanup=effects[0](); await new Promise(resolve => setTimeout(resolve,0))

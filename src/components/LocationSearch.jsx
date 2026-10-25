@@ -40,11 +40,11 @@ export default function LocationSearch({ onSelect }) {
     }
   }
   return <div className="roadsafe-location-search" onKeyDown={(event) => { if (event.key === 'Escape') clear() }}>
-    <form onSubmit={submit} className="flex items-center bg-darkBg border border-darkBorder rounded-lg">
+    <form onSubmit={submit} className="flex items-center bg-edge/[0.05] border border-edge/10 rounded-full pl-1">
       <input aria-label="Search map locations" placeholder="Search city, place or address…" value={query}
         onChange={(event) => { clear(); setQuery(event.target.value) }}
-        className="w-full min-w-0 bg-transparent px-3 py-2 text-xs text-slate-200 focus:outline-none" />
-      <button type="submit" disabled={busy} aria-label="Search locations" className="px-3 py-2 text-slate-400 hover:text-white disabled:opacity-50"><i className={`fa-solid ${busy ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'}`} /></button>
+        className="w-full min-w-0 bg-transparent px-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none" />
+      <button type="submit" disabled={busy} aria-label="Search locations" className="px-3 py-2 text-slate-400 hover:text-strong disabled:opacity-50"><i className={`fa-solid ${busy ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'}`} /></button>
     </form>
     {message && <div className="roadsafe-search-results">
       <div className="flex justify-between gap-3"><p role="status">{message}</p><button type="button" aria-label="Close search results" onClick={clear}>×</button></div>
