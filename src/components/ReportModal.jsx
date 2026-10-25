@@ -60,7 +60,7 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
   const coords = report.location.coordinates
   const Container = embedded ? 'section' : 'dialog'
   return (
-    <Container ref={dialog} aria-labelledby="report-title" onCancel={(event) => { event.preventDefault(); onClose() }} className={embedded ? "bg-darkCard text-slate-100 border border-darkBorder rounded-2xl w-full min-w-0 overflow-y-auto xl:max-h-[75vh]" : "m-auto bg-darkCard text-slate-100 border border-darkBorder rounded-2xl w-full max-w-2xl max-h-[90vh] p-0 backdrop:bg-slate-950/80"}>
+    <Container ref={dialog} aria-labelledby="report-title" onCancel={(event) => { event.preventDefault(); onClose() }} className={embedded ? "dx-card text-slate-100 w-full min-w-0 overflow-y-auto xl:max-h-[75vh]" : "m-auto bg-darkCard text-slate-100 border border-darkBorder rounded-2xl w-full max-w-2xl max-h-[90vh] p-0 backdrop:bg-slate-950/80"}>
       <form onSubmit={submit} className="text-xs">
         <header className="p-5 border-b border-darkBorder flex justify-between gap-3">
           <h2 id="report-title" className="font-bold text-sm">Report Details: <span className="text-orange-400">{report.id}</span></h2>
@@ -78,7 +78,7 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
             <div><dt className="text-slate-400">Verification</dt><dd>{report.verification.verifiedAt ? `${officerName(users, report.verification.verifiedBy)} — ${formatDateTime(report.verification.verifiedAt)}` : 'Not verified'}</dd></div>
           </dl>
           <section aria-labelledby="reporter-info-title" className="border border-darkBorder bg-darkBg rounded-xl p-4">
-            <h3 id="reporter-info-title" className="font-semibold text-white mb-3">Reporter info</h3>
+            <h3 id="reporter-info-title" className="font-semibold text-strong mb-3">Reporter info</h3>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><dt className="text-slate-400">Full name</dt><dd className="mt-1 whitespace-pre-wrap break-words">{report.reporter.name ?? 'Not provided'}</dd></div>
               <div><dt className="text-slate-400">Contact number</dt><dd className="mt-1 whitespace-pre-wrap break-words">{report.reporter.contact ?? 'Not provided'}</dd></div>
@@ -112,7 +112,7 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
             {status === REPORT_STATUS.REJECTED && <label className="block">Rejection reason (required)<textarea required className={control} value={rejectionReason} onChange={(e) => setReason(e.target.value)} /></label>}
           </div>
           {onDuplicate && !report.isDuplicate && DUPLICATE_REVIEW_STATUSES.includes(report.status) && <section className="space-y-3 border-t border-darkBorder pt-4">
-            <h3 className="font-semibold text-white">Duplicate review</h3>
+            <h3 className="font-semibold text-strong">Duplicate review</h3>
             <p className="text-slate-400">Confirm both submissions describe the same incident. Marking a duplicate retains this report and rejects it with your reason. Verified or assigned cases must return to review first.</p>
             <label className="block">Original report<select aria-label="Original report" className={control} value={originalId} disabled={saving} onChange={event => setOriginalId(event.target.value)}>
               <option value="">Choose original report</option>{duplicateOriginals(reports, report.id).map(r => <option key={r.id} value={r.id}>{r.id} · {categoryLabel(r.categoryId)} · {r.location.address ?? 'Confirmed map location'}</option>)}

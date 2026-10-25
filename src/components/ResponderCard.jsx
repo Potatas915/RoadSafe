@@ -84,7 +84,7 @@ export default function ResponderCard({
           <i className={`fa-solid ${ui.icon}`}></i>
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="font-bold text-sm text-white truncate">{station.name}</h3>
+          <h3 className="font-bold text-sm text-strong truncate">{station.name}</h3>
           <p className="text-[11px] text-slate-400">{typeName}</p>
           <span
             className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_TONE[data.status]}`}
@@ -95,7 +95,7 @@ export default function ResponderCard({
         <button
           onClick={onClose}
           aria-label="Close"
-          className="text-slate-400 hover:text-white"
+          className="text-slate-400 hover:text-strong"
         >
           <i className="fa-solid fa-xmark text-lg"></i>
         </button>
@@ -105,7 +105,7 @@ export default function ResponderCard({
         {enforcerPanel}
         <div className="bg-darkBg p-3 rounded-xl border border-darkBorder space-y-1">
           <span className={label}>Location & Coordinates</span>
-          <p className="font-medium text-white">
+          <p className="font-medium text-strong">
             {station.address || 'Address not available'}
           </p>
           <p className="font-mono text-orange-400 text-[11px]">
@@ -118,7 +118,7 @@ export default function ResponderCard({
             <span className={label}>Distance to scene</span>
             {distance != null ? (
               <>
-                <p className="font-medium text-white">{distance.toFixed(1)} km</p>
+                <p className="font-medium text-strong">{distance.toFixed(1)} km</p>
                 <p className="text-slate-400 text-[11px]">ETA ~{eta} min</p>
               </>
             ) : (

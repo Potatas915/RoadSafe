@@ -12,7 +12,8 @@ export const SEVERITY_ICON_COLORS = ['#86efac', '#facc15', '#fb923c', '#fb7185',
 export const accidentIconViewBox = (category) => category === 'collision' ? [0, 5, 24, 15] : category === 'rollover' ? [0, 5, 24, 14] : [0, 0, 24, 24]
 export const accidentIconId = (category, color) => `roadsafe-accident-${category}-${color}`
 
-export function registerAccidentIcons(map) {
+// `backing` adds a dark disc behind each marker so pale severity colors stay legible on a light basemap.
+export function registerAccidentIcons(map, { backing = false } = {}) {
   for (const [category, path] of Object.entries(ACCIDENT_ICON_PATHS)) for (const color of SEVERITY_ICON_COLORS) {
     const id = accidentIconId(category, color)
     if (map.hasImage(id)) continue
@@ -28,6 +29,11 @@ export function registerAccidentIcons(map) {
     function draw(phase) {
       ctx.setTransform(4, 0, 0, 4, 0, 0)
       ctx.clearRect(0, 0, 48, 48)
+      if (backing) {
+        ctx.beginPath(); ctx.arc(24, 24, 13.4, 0, Math.PI * 2)
+        ctx.globalAlpha = 0.9; ctx.fillStyle = '#111827'; ctx.fill()
+        ctx.globalAlpha = 0.95; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.9; ctx.stroke()
+      }
       // Keep the icon steady inside a faint tint; two ripples travel outward.
       ctx.beginPath(); ctx.arc(24, 24, 13.4, 0, Math.PI * 2)
       ctx.fillStyle = color; ctx.globalAlpha = 0.08; ctx.fill()

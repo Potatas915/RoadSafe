@@ -123,7 +123,7 @@ test('admin reporter info shows submitted full name/contact, escapes text and ha
 // function bodies, so schema/render tests alone cannot catch setup exceptions.
 test('map layer setup executes and uses valid category colors and severity stops', () => {
   const source = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
-  const helpers = source.slice(source.indexOf('const COLORS ='), source.indexOf('export default function MapView'))
+  const helpers = source.slice(source.indexOf('const PALETTES ='), source.indexOf('export default function MapView'))
   const sources = new Map(), layers = []
   const map = { getSource: (id) => sources.get(id), addSource: (id, options) => sources.set(id, options), addLayer: (layer) => layers.push(layer) }
   const context = vm.createContext({ ACCIDENT_CATEGORIES, map })

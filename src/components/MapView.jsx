@@ -33,6 +33,7 @@ import MedicalFacilityCard from './MedicalFacilityCard.jsx';
 import { nearestFacilities, isMedicalFacility } from '../models/medicalFacilities.js';
 import { getMedicalRecommendation, saveMedicalRecommendation } from '../backend/medicalRecommendations.js';
 import MapReportCard, { MapReportPreview } from "./MapReportCard.jsx";
+import useTheme from "../hooks/useTheme.js";
 import AccidentCategoryIcon from "./AccidentCategoryIcon.jsx";
 import { registerAccidentIcons } from "../models/accidentIcons.js";
 import { luzonReportsResponse, LUZON_SAMPLE_BOUNDS } from "../data/luzonReports.js";
@@ -40,18 +41,22 @@ import { luzonReportsResponse, LUZON_SAMPLE_BOUNDS } from "../data/luzonReports.
 const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
 
 
-const MAP_STYLE = `https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json${
+const styleUrl = (name) => `https://basemaps.cartocdn.com/gl/${name}/style.json${
   CARTO_API_KEY ? `?key=${encodeURIComponent(CARTO_API_KEY)}` : ""
 }`;
+const MAP_STYLES = { dark: styleUrl("dark-matter-gl-style"), light: styleUrl("positron-gl-style") };
 
-const COLORS = {
-  background: "#17191c",
-  land: "#202226",
-  roads: "#45484d",
-  majorRoads: "#62666d",
-  buildings: "#2c2f34",
-  water: "#191c20",
-  labels: "#aeb3bb",
+const PALETTES = {
+  dark: {
+    background: "#0b1019", land: "#101722", roads: "#2c3748", majorRoads: "#44526b",
+    buildings: "#16202e", water: "#0a121f", labels: "#8d98ab",
+    park: "#121b27", admin: "#151d2b", adminLine: "#34415a",
+  },
+  light: {
+    background: "#eaeef4", land: "#f1f4f8", roads: "#dde3ec", majorRoads: "#c2ccdb",
+    buildings: "#e3e8f0", water: "#c9d9ec", labels: "#566176",
+    park: "#e5eee8", admin: "#e0e5ec", adminLine: "#b4bdcb",
+  },
 };
 
 const CASE_COLOR = ["coalesce", ["get", "caseColor"], "#94a3b8"];
@@ -59,7 +64,7 @@ const REPORT_COLOR = ["match", ["get", "reportType"],
   ...ACCIDENT_CATEGORIES.filter((c) => c.id !== "other").flatMap((c) => [c.id, c.color]),
   ACCIDENT_CATEGORIES.find((c) => c.id === "other").color];
 const INITIAL_CENTER = [120.88, 14.85];
-function applyRoadSafeBasemapStyle(map) {
+function applyRoadSafeBasemapStyle(map, COLORS) {
   const layers = map.getStyle()?.layers || [];
 
   for (const layer of layers) {
@@ -101,9 +106,9 @@ function applyRoadSafeBasemapStyle(map) {
           id.includes("land-use") ||
           id.includes("landuse")
         ) {
-          map.setPaintProperty(layer.id, "fill-color", "#23262a");
+          map.setPaintProperty(layer.id, "fill-color", COLORS.park);
         } else if (id.includes("boundary") || id.includes("admin")) {
-          map.setPaintProperty(layer.id, "fill-color", "#292c31");
+          map.setPaintProperty(layer.id, "fill-color", COLORS.admin);
           map.setPaintProperty(layer.id, "fill-opacity", 0.18);
         } else {
           map.setPaintProperty(layer.id, "fill-color", COLORS.land);
@@ -123,7 +128,7 @@ function applyRoadSafeBasemapStyle(map) {
         ) {
           map.setPaintProperty(layer.id, "line-color", COLORS.majorRoads);
         } else if (id.includes("boundary") || id.includes("admin")) {
-          map.setPaintProperty(layer.id, "line-color", "#555a62");
+          map.setPaintProperty(layer.id, "line-color", COLORS.adminLine);
           map.setPaintProperty(layer.id, "line-opacity", 0.55);
         } else {
           map.setPaintProperty(layer.id, "line-color", COLORS.roads);
@@ -318,6 +323,11 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const [sampleMode, setSampleMode] = useState(true);
   const mapRecords = sampleMode ? luzonReportsResponse.data : reportRecords;
   const [includePending, setIncludePending] = useState(true);
+  const { theme: mapTheme } = useTheme();
+  const viewRef = useRef(null);
+  const keepViewRef = useRef(false);
+  const [dockTab, setDockTab] = useState("filters");
+  const [dockOpen, setDockOpen] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState("");
   const reports = useMemo(() => reportsToGeoJSON(mapRecords), [mapRecords]);
   const [mapError, setMapError] = useState("");
@@ -561,16 +571,20 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     // A recreated map (including Vite refresh) needs its sources populated again.
     setMapReady(false);
 
+    // A theme change swaps basemap styles. Rebuild the map and put the camera back where it was.
+    const saved = viewRef.current;
+    keepViewRef.current = Boolean(saved);
+    const palette = PALETTES[mapTheme];
     const map = new MapLibreMap({
       container: containerRef.current,
-      style: MAP_STYLE,
-      center: INITIAL_CENTER,
-      zoom: 10,
+      style: MAP_STYLES[mapTheme],
+      center: saved?.center ?? INITIAL_CENTER,
+      zoom: saved?.zoom ?? 10,
       minZoom: 3,
       maxZoom: 19,
       attributionControl: false,
-      pitch: 0,
-      bearing: 0,
+      pitch: saved?.pitch ?? 0,
+      bearing: saved?.bearing ?? 0,
     });
 
     mapRef.current = map;
@@ -581,7 +595,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
         showZoom: true,
         visualizePitch: true,
       }),
-      "top-right",
+      "bottom-right",
     );
 
     map.addControl(
@@ -595,8 +609,8 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
 
     map.on("load", () => {
       try {
-        applyRoadSafeBasemapStyle(map);
-        registerAccidentIcons(map);
+        applyRoadSafeBasemapStyle(map, palette);
+        registerAccidentIcons(map, { backing: mapTheme === "light" });
         addReportLayers(map);
         setMapReady(true);
         setMapError("");
@@ -662,10 +676,11 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     });
 
     return () => {
+      viewRef.current = { center: map.getCenter().toArray(), zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() };
       map.remove();
       mapRef.current = null;
     };
-  }, []);
+  }, [mapTheme]);
 
   // Send only the filtered reports to the map source.
   // Filtering before clustering keeps cluster counts accurate.
@@ -724,7 +739,9 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   }, [sampleMode]);
 
   useEffect(() => {
-    if (mapReady) resetMap();
+    if (!mapReady) return;
+    if (keepViewRef.current) keepViewRef.current = false;
+    else resetMap();
   }, [mapReady, resetMap]);
 
   const focusSelectedReport = useCallback(() => {
@@ -737,390 +754,430 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     <div className="roadsafe-map-page">
       <style>{`
         .roadsafe-map-page {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
+          --ember: #ff7a1a;
+          --ember-soft: rgba(255, 122, 26, .16);
+          position: relative;
+          flex: 1;
           width: 100%;
           min-width: 0;
           min-height: 0;
-          flex: 1;
-          overflow-y: auto;
-          padding: 24px;
-          position: relative;
-          color: #e5e7eb;
+          overflow: hidden;
+          color: var(--ink);
           font-family: Inter, system-ui, sans-serif;
         }
         .roadsafe-map-page * { box-sizing: border-box; }
-        .roadsafe-map-header {
+
+        /* One glass recipe shared by every floating surface. */
+        .roadsafe-map-bar, .roadsafe-map-legend, .roadsafe-map-dock {
+          background: var(--glass);
+          -webkit-backdrop-filter: blur(18px) saturate(1.5);
+          backdrop-filter: blur(18px) saturate(1.5);
+          border: 1px solid var(--hair);
+          box-shadow: 0 10px 32px var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .07);
+        }
+
+        .roadsafe-map-canvas {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: rgb(var(--c-bg));
+        }
+        .roadsafe-map-canvas .maplibregl-map { width: 100%; height: 100%; }
+
+        /* Top-left HUD: title, live counts, source controls, legend. */
+        .roadsafe-map-hud {
+          position: absolute;
+          z-index: 10;
+          top: 12px;
+          left: 12px;
           display: flex;
-          justify-content: space-between;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+          max-width: calc(100% - 348px);
+          pointer-events: none;
+        }
+        .roadsafe-map-hud > * { pointer-events: auto; }
+        .roadsafe-map-bar {
+          display: flex;
           align-items: center;
           flex-wrap: wrap;
-          gap: 12px;
+          gap: 8px 14px;
+          padding: 8px 10px 8px 14px;
+          border-radius: 16px;
         }
         .roadsafe-map-title {
           margin: 0;
-          font-size: 22px;
+          font-size: 14px;
           font-weight: 650;
-          letter-spacing: -.04em;
+          letter-spacing: -.01em;
+          line-height: 1.2;
         }
         .roadsafe-map-subtitle {
-          margin: 5px 0 0;
-          color: #8e959f;
-          font-size: 13px;
+          margin: 2px 0 0;
+          color: var(--muted);
+          font-size: 11px;
+          line-height: 1.2;
         }
+        .roadsafe-map-metrics { display: flex; gap: 6px; }
+        .roadsafe-map-metric {
+          display: flex;
+          align-items: baseline;
+          gap: 6px;
+          padding: 5px 10px;
+          border-radius: 10px;
+          background: var(--tint);
+          border: 1px solid transparent;
+          white-space: nowrap;
+        }
+        .roadsafe-map-metric-value {
+          font-size: 15px;
+          font-weight: 650;
+          font-variant-numeric: tabular-nums;
+          color: var(--strong);
+        }
+        .roadsafe-map-metric-label { color: var(--muted); font-size: 11px; }
+        .roadsafe-map-metric.is-verified .roadsafe-map-metric-value { color: var(--ok); }
+        .roadsafe-map-metric.is-pending .roadsafe-map-metric-value { color: var(--warn); }
+
         .roadsafe-map-chip {
           display: flex;
           align-items: center;
-          gap: 7px;
-          border: 1px solid #30343a;
-          background: #1b1e22;
-          color: #b9bec6;
-          border-radius: 7px;
-          padding: 7px 10px;
-          font-size: 12px;
+          gap: 8px;
+          padding-left: 14px;
+          border-left: 1px solid var(--hair);
+          color: var(--muted);
+          font-size: 11px;
         }
-        .roadsafe-map-metrics {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 10px;
-        }
-        .roadsafe-map-metric {
-          border: 1px solid #30343a;
-          background: #1b1e22;
+        .roadsafe-map-status { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+        .roadsafe-map-status.is-ready { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+        .roadsafe-map-status.is-wait { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 22%, transparent); }
+        .roadsafe-map-button {
+          border: 1px solid var(--hair);
+          background: var(--tint-2);
+          color: var(--ink);
           border-radius: 9px;
-          padding: 13px 15px;
+          padding: 5px 10px;
+          font-size: 11px;
+          cursor: pointer;
+          transition: background .15s, border-color .15s;
+        }
+        .roadsafe-map-button:hover { background: var(--tint-3); border-color: var(--hair-hi); }
+
+        .roadsafe-map-legend {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 5px 12px;
+          border-radius: 999px;
+          font-size: 10.5px;
+          color: var(--ink-2);
+        }
+        .roadsafe-map-legend span.item { display: flex; align-items: center; gap: 5px; }
+        .roadsafe-map-legend i.dot { width: 7px; height: 7px; border-radius: 50%; display: block; }
+
+        /* Select controls */
+        .roadsafe-select {
+          appearance: none;
+          -webkit-appearance: none;
+          background-color: var(--tint-2);
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238d98ab' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 9px center;
+          border: 1px solid var(--hair);
+          border-radius: 9px;
+          color: var(--ink);
+          font-size: 11.5px;
+          padding: 5px 26px 5px 10px;
           min-width: 0;
+          cursor: pointer;
         }
-        .roadsafe-map-metric-label {
-          color: #8e959f;
-          font-size: 12px;
-        }
-        .roadsafe-map-metric-value {
-          margin-top: 5px;
-          font-size: 23px;
-          font-weight: 650;
-          color: #f3f4f6;
-        }
-        .roadsafe-map-layout {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) 272px;
-          align-items: stretch;
-          gap: 12px;
-          min-width: 0;
-        }
-        .roadsafe-map-canvas {
-          position: relative;
-          min-width: 0;
-          height: max(520px, calc(100dvh - 290px));
-          min-height: 390px;
-          overflow: hidden;
-          border: 1px solid #30343a;
-          border-radius: 10px;
-          background: #17191c;
-        }
-        .roadsafe-map-canvas .maplibregl-map {
-          width: 100%;
-          height: 100%;
-        }
-        .roadsafe-map-canvas .maplibregl-ctrl-group {
-          background: #202328;
-          border: 1px solid #393e45;
-          box-shadow: 0 3px 14px #0005;
-        }
-        .roadsafe-map-canvas .maplibregl-ctrl-group button {
-          background-color: #202328;
-        }
-        .roadsafe-map-canvas .maplibregl-ctrl-group button span {
-          filter: invert(.85);
-        }
-        .roadsafe-map-canvas .maplibregl-ctrl-attrib {
-          background: #17191ce8;
-          color: #aeb3bb;
-        }
-        .roadsafe-map-canvas .maplibregl-ctrl-attrib a {
-          color: #c3c8d0;
-        }
-        .roadsafe-map-sidebar {
+        .roadsafe-select:hover { border-color: var(--hair-hi); }
+
+        /* Right dock: Filters / Response */
+        .roadsafe-map-dock {
+          position: absolute;
+          z-index: 10;
+          top: 12px;
+          right: 12px;
+          width: 312px;
+          max-height: calc(100% - 168px);
           display: flex;
           flex-direction: column;
-          gap: 12px;
-          min-width: 0;
+          border-radius: 18px;
+          overflow: hidden;
         }
-        .roadsafe-map-panel {
-          border: 1px solid #30343a;
-          background: #1b1e22;
+        .roadsafe-map-dock-head {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px;
+        }
+        .roadsafe-map-tabs {
+          flex: 1;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 3px;
+          padding: 3px;
+          border-radius: 12px;
+          background: var(--well);
+        }
+        .roadsafe-map-tab {
+          border: 0;
           border-radius: 9px;
-          padding: 16px;
-        }
-        .roadsafe-map-panel-title {
-          margin: 0 0 12px;
-          color: #e5e7eb;
+          background: transparent;
+          color: var(--muted);
           font-size: 12px;
-          font-weight: 650;
-          letter-spacing: .07em;
-          text-transform: uppercase;
+          font-weight: 600;
+          padding: 6px 8px;
+          cursor: pointer;
+          transition: background .15s, color .15s;
         }
+        .roadsafe-map-tab:hover { color: var(--ink); }
+        .roadsafe-map-tab[aria-selected="true"] {
+          background: var(--glass-solid);
+          color: var(--strong);
+          box-shadow: 0 1px 3px var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .08);
+        }
+        .roadsafe-map-collapse {
+          flex: none;
+          width: 30px;
+          height: 30px;
+          border: 1px solid var(--hair);
+          border-radius: 10px;
+          background: var(--tint);
+          color: var(--muted);
+          cursor: pointer;
+        }
+        .roadsafe-map-collapse:hover { color: var(--strong); border-color: var(--hair-hi); }
+        .roadsafe-map-collapse i { transition: transform .2s; }
+        .roadsafe-map-collapse[aria-expanded="false"] i { transform: rotate(180deg); }
+        .roadsafe-map-dock-body {
+          overflow-y: auto;
+          padding: 2px 12px 12px;
+          border-top: 1px solid var(--hair);
+          padding-top: 12px;
+        }
+        .roadsafe-map-panel[hidden] { display: none; }
+        .roadsafe-map-panel .roadsafe-select { width: 100%; margin-bottom: 8px; }
+
         .roadsafe-map-filter {
           display: flex;
           align-items: center;
           gap: 9px;
-          padding: 8px 0;
-          color: #c5cad1;
-          font-size: 13px;
+          padding: 6px 8px;
+          margin: 0 -8px;
+          border-radius: 9px;
+          color: var(--ink-2);
+          font-size: 12.5px;
           cursor: pointer;
+          transition: background .12s;
         }
+        .roadsafe-map-filter:hover { background: var(--tint); }
+        .roadsafe-map-filter svg { width: 20px; height: 20px; }
+        .roadsafe-map-filter:has(input:not(:checked)) { color: var(--muted); }
         .roadsafe-map-filter input,
-        .roadsafe-map-toggle input {
-          accent-color: #d1d5db;
-        }
-        .roadsafe-map-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          flex: none;
-        }
+        .roadsafe-map-toggle input { accent-color: var(--ember); width: 14px; height: 14px; margin: 0; }
+        .roadsafe-map-hint { margin: 8px 0 0; color: var(--muted); font-size: 10.5px; line-height: 1.4; }
         .roadsafe-map-toggle {
           display: flex;
           gap: 8px;
           align-items: center;
           margin-top: 10px;
+          padding-top: 10px;
+          border-top: 1px solid var(--hair);
           font-size: 12px;
-          color: #aeb4bd;
+          color: var(--ink-2);
           cursor: pointer;
         }
-        .roadsafe-map-details {
-          margin-top: 0;
-          padding: 16px;
-          background: #15171a;
-          border: 1px solid #30343a;
-          border-radius: 8px;
-          font-size: 12px;
-          overflow-wrap: anywhere;
-        }
-        .roadsafe-map-button {
-          border: 1px solid #41464e;
-          background: #22262b;
-          color: #e5e7eb;
-          border-radius: 5px;
-          padding: 6px 9px;
-          cursor: pointer;
-        }
-        
+        .roadsafe-note { margin-top: 8px; color: var(--ink-3); font-size: 11.5px; }
+        .roadsafe-note.is-error { color: var(--err); }
+        .roadsafe-map-lede { margin: 0 0 10px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+        /* Emergency response controls */
         .roadsafe-response-action {
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
           gap: .5rem;
-          border: none;
-          border-radius: 100px;
-          font-weight: 800;
-          padding: .75rem 1rem;
-          font-size: .825rem;
-          line-height: 1rem;
-          background-color: rgba(0, 0, 0, .4);
-          box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 0 0 1px rgba(255,255,255,.04);
-          color: #fff;
-          transition: all .5s cubic-bezier(.165,.84,.44,1);
-        }
-        .roadsafe-response-action {
-          --button-color: #e2e8f0;
-          --button-rgb: 226, 232, 240;
           width: 100%;
-          background-color: #22262b;
+          border: 1px solid rgba(255, 122, 26, .38);
+          border-radius: 12px;
+          padding: .6rem .9rem;
+          font-size: .78rem;
+          font-weight: 650;
+          line-height: 1rem;
+          color: var(--ember-ink);
+          background: linear-gradient(180deg, rgba(255, 122, 26, .24), rgba(255, 122, 26, .1));
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1);
+          transition: background .18s, border-color .18s, transform .18s;
         }
         .roadsafe-response-action > i { flex-shrink: 0; color: currentColor; }
         .roadsafe-response-action:hover {
-          box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 1px rgba(var(--button-rgb),.08);
-          color: var(--button-color);
-          transform: translateY(-.25rem);
-          background-color: rgba(0,0,0,.5);
+          border-color: rgba(255, 150, 70, .6);
+          background: linear-gradient(180deg, rgba(255, 122, 26, .34), rgba(255, 122, 26, .16));
         }
-        .roadsafe-response-action:active { transform: translateY(0); }
+        .roadsafe-response-action:active { transform: scale(.985); }
         .roadsafe-response-radius {
           justify-content: space-between;
-          margin-bottom: 10px;
+          margin: 0 0 8px;
+          padding: 0;
+          border: 0;
         }
-        .roadsafe-response-radius select {
-          min-height: 36px;
-          padding: 6px 10px;
-          border: 1px solid #ffffff14;
-          border-radius: 999px;
-          background: #0b0f19;
-          color: #e2e8f0;
-          color-scheme: dark;
-          font-size: 12px;
-          cursor: pointer;
-        }
+        .roadsafe-map-panel .roadsafe-response-radius { white-space: nowrap; }
+        .roadsafe-map-panel .roadsafe-response-radius .roadsafe-select { width: auto; min-width: 96px; margin: 0; }
         .roadsafe-pick-row {
-          /* Adjust these two values to change the click animation speed. */
-          --response-transition-duration: .3s;
-          --response-mask-duration: .3s;
-          --response-button-height: 34px;
+          --button-color: #e2e8f0;
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 8px;
-          margin-top: 12px;
+          gap: 6px;
+          margin-top: 8px;
         }
         .roadsafe-pick {
           position: relative;
-          isolation: isolate;
           width: 100%;
           min-width: 0;
-          min-height: var(--response-button-height);
-          padding: 5px;
-          border: 3px ridge #64748b;
-          border-radius: .3em;
-          background: transparent;
-          color: #e2e8f0;
+          padding: 8px 6px;
+          border: 1px solid var(--hair);
+          border-radius: 11px;
+          background: var(--tint);
+          color: var(--ink-2);
           font-size: 11px;
-          line-height: 1.4;
-          font-weight: bold;
+          font-weight: 600;
+          line-height: 1.3;
           cursor: pointer;
           user-select: none;
-          transition: border-color var(--response-transition-duration), color var(--response-transition-duration), box-shadow var(--response-transition-duration);
+          transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
         }
-        .roadsafe-pick > span {
-          position: relative;
-          z-index: 3;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 5px;
-        }
+        .roadsafe-pick > span { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
         .roadsafe-pick > span > i { flex-shrink: 0; }
-        .roadsafe-pick::before, .roadsafe-pick::after {
-          content: '';
-          position: absolute;
-          left: 3%;
-          width: 95%;
-          height: 40%;
-          background: #1b1e22;
-          pointer-events: none;
-          transform: scale(1);
-          transform-origin: center;
-          transition: transform var(--response-mask-duration);
-        }
-        .roadsafe-pick::after { top: -10px; }
-        .roadsafe-pick::before { top: 80%; }
-        .roadsafe-pick.is-police { --button-color: #60a5fa; --button-glow: #1479ea; }
-        .roadsafe-pick.is-medic { --button-color: #f87171; --button-glow: #dc2626; }
+        .roadsafe-pick:hover { background: var(--tint-3); }
+        .roadsafe-pick.is-police { --button-color: var(--police); --button-glow: color-mix(in srgb, var(--police) 16%, transparent); }
+        .roadsafe-pick.is-medic { --button-color: var(--medic); --button-glow: color-mix(in srgb, var(--medic) 16%, transparent); }
         .roadsafe-pick.is-on {
           color: var(--button-color);
           border-color: var(--button-color);
-          box-shadow: inset 0 0 25px var(--button-glow);
+          background: var(--button-glow);
+          box-shadow: 0 0 18px var(--button-glow);
         }
-        .roadsafe-pick.is-on::before, .roadsafe-pick.is-on::after { transform: scale(0); }
-        .roadsafe-pick:disabled, .roadsafe-response-radius select:disabled { opacity: .6; cursor: default; }
-        .roadsafe-pick:focus-visible, .roadsafe-response-action:focus-visible {
-          outline: 2px solid var(--button-color);
-          outline-offset: 3px;
+        .roadsafe-pick:disabled, .roadsafe-select:disabled { opacity: .55; cursor: default; }
+        .roadsafe-pick:focus-visible, .roadsafe-response-action:focus-visible,
+        .roadsafe-map-tab:focus-visible, .roadsafe-map-collapse:focus-visible,
+        .roadsafe-map-button:focus-visible, .roadsafe-select:focus-visible {
+          outline: 2px solid var(--button-color, var(--ember));
+          outline-offset: 2px;
         }
-        .roadsafe-response-radius select:focus-visible { outline: 2px solid #cbd5e1; outline-offset: 3px; }
         @media (prefers-reduced-motion: reduce) {
-          .roadsafe-response-action, .roadsafe-pick, .roadsafe-pick::before, .roadsafe-pick::after { transition: none; }
-          .roadsafe-response-action:hover { transform: none; }
+          .roadsafe-response-action, .roadsafe-pick, .roadsafe-map-tab, .roadsafe-map-collapse i { transition: none; }
         }
 
+        /* Map controls + attribution, glass-matched */
+        .roadsafe-map-canvas .maplibregl-ctrl-group {
+          background: var(--glass);
+          -webkit-backdrop-filter: blur(18px) saturate(1.5);
+          backdrop-filter: blur(18px) saturate(1.5);
+          border: 1px solid var(--hair);
+          border-radius: 12px;
+          box-shadow: 0 8px 24px var(--shadow);
+          overflow: hidden;
+        }
+        .roadsafe-map-canvas .maplibregl-ctrl-group button { background-color: transparent; }
+        .roadsafe-map-canvas .maplibregl-ctrl-group button + button { border-top: 1px solid var(--hair); }
+        .roadsafe-map-canvas .maplibregl-ctrl-group button:hover { background-color: var(--tint-3); }
+        .roadsafe-map-canvas .maplibregl-ctrl-group button span { filter: var(--ctrl-filter); }
+        .roadsafe-map-canvas .maplibregl-ctrl-attrib {
+          background: var(--glass);
+          color: var(--muted);
+          border-radius: 8px 0 0 0;
+        }
+        .roadsafe-map-canvas .maplibregl-ctrl-attrib a { color: var(--ink-3); }
+
+        .roadsafe-map-details {
+          margin-top: 0;
+          padding: 16px;
+          background: var(--glass-solid);
+          border: 1px solid var(--hair);
+          border-radius: 12px;
+          font-size: 12px;
+          overflow-wrap: anywhere;
+        }
         .roadsafe-map-error {
           position: absolute;
-          z-index: 5;
-          inset: 12px 12px auto;
-          background: #2a1c1c;
-          border: 1px solid #7f3333;
-          color: #fecaca;
-          padding: 10px 12px;
-          border-radius: 7px;
+          z-index: 15;
+          bottom: 44px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: min(520px, calc(100% - 24px));
+          background: var(--err-bg);
+          -webkit-backdrop-filter: blur(14px);
+          backdrop-filter: blur(14px);
+          border: 1px solid var(--err-line);
+          color: var(--err);
+          padding: 10px 14px;
+          border-radius: 12px;
           font-size: 12px;
         }
+
         @media (max-width: 1100px) {
-          .roadsafe-map-layout {
-            grid-template-columns: minmax(0, 1fr);
-          }
-          .roadsafe-map-sidebar {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-          .roadsafe-map-canvas {
-            height: 55vh;
-            min-height: 340px;
-          }
+          .roadsafe-map-hud { max-width: calc(100% - 24px); }
+          .roadsafe-map-dock { top: auto; bottom: 12px; right: 56px; width: min(312px, calc(100% - 140px)); max-height: 52%; }
         }
         @media (max-width: 600px) {
-          .roadsafe-map-page { padding: 16px; }
-          .roadsafe-map-chip { flex-wrap: wrap; }
-          .roadsafe-map-metrics { gap: 6px; }
-          .roadsafe-map-metric { padding: 10px; }
-          .roadsafe-map-metric-value { font-size: 19px; }
-          .roadsafe-map-sidebar {
-            grid-template-columns: minmax(0, 1fr);
-          }
+          .roadsafe-map-chip { border-left: 0; padding-left: 0; }
+          .roadsafe-map-legend { flex-wrap: wrap; border-radius: 14px; }
         }
       `}</style>
 
-      <header className="roadsafe-map-header">
-        <div>
-          <h2 className="roadsafe-map-title">Road Safety Map</h2>
-          <p className="roadsafe-map-subtitle">
-            {sampleMode ? "Luzon sample incidents · fictional, browser-only" : "Accident reports and traffic-risk locations"}
-          </p>
-        </div>
-
-        <div className="roadsafe-map-chip">
-          <select aria-label="Map report source" value={sampleMode ? "samples" : "existing"}
-            className="bg-darkBg border border-darkBorder rounded p-1 text-xs min-w-0"
-            onChange={(event) => {
-              const samples = event.target.value === "samples";
-              setSampleMode(samples); setIncludePending(samples); setSelectedStatus("");
-              setSelectedReportId(null); setSelectedStation(null);
-              police.hide(); medical.hide(); radius.hide();
-            }}>
-            <option value="samples">Luzon samples</option>
-            <option value="existing">Existing reports</option>
-          </select>
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: mapReady ? "#4ade80" : "#fbbf24",
-            }}
-          />
-          {mapError ? "Map setup error" : mapReady ? "Map connected" : "Loading basemap"}
-          <button
-            type="button"
-            className="roadsafe-map-button"
-            onClick={resetMap}
-            style={{ marginLeft: 5 }}
-          >
-            Reset view
-          </button>
-        </div>
-      </header>
-
-      {mapError && <div className="roadsafe-map-error">{mapError}</div>}
-
-      <section className="roadsafe-map-metrics">
-        <div className="roadsafe-map-metric">
-          <div className="roadsafe-map-metric-label">Visible reports</div>
-          <div className="roadsafe-map-metric-value">{metrics.total}</div>
-        </div>
-        <div className="roadsafe-map-metric">
-          <div className="roadsafe-map-metric-label">Verified</div>
-          <div className="roadsafe-map-metric-value">{metrics.verified}</div>
-        </div>
-        <div className="roadsafe-map-metric">
-          <div className="roadsafe-map-metric-label">Unverified</div>
-          <div className="roadsafe-map-metric-value">{metrics.pending}</div>
-        </div>
-      </section>
-
-      <div className="roadsafe-map-layout">
         <div className="roadsafe-map-canvas">
-          <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2 rounded-lg border border-white/10 bg-darkBg/90 backdrop-blur px-3 py-2 text-[10px] text-slate-300 max-w-[calc(100%-64px)]" aria-label="Accident severity colors">
-            <span>Severity</span>{[["Low", "#86efac"], ["Medium", "#facc15"], ["High", "#fb923c"], ["Critical", "#fb7185"], ["Unknown", "#94a3b8"]].map(([label, color]) => <span key={label} className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />{label}</span>)}
+          <div className="roadsafe-map-hud">
+            <header className="roadsafe-map-bar">
+              <div>
+                <h2 className="roadsafe-map-title">Road Safety Map</h2>
+                <p className="roadsafe-map-subtitle">
+                  {sampleMode ? "Luzon sample incidents · fictional, browser-only" : "Accident reports and traffic-risk locations"}
+                </p>
+              </div>
+
+              <div className="roadsafe-map-metrics" aria-label="Visible report counts">
+                <div className="roadsafe-map-metric">
+                  <span className="roadsafe-map-metric-value">{metrics.total}</span>
+                  <span className="roadsafe-map-metric-label">Visible</span>
+                </div>
+                <div className="roadsafe-map-metric is-verified">
+                  <span className="roadsafe-map-metric-value">{metrics.verified}</span>
+                  <span className="roadsafe-map-metric-label">Verified</span>
+                </div>
+                <div className="roadsafe-map-metric is-pending">
+                  <span className="roadsafe-map-metric-value">{metrics.pending}</span>
+                  <span className="roadsafe-map-metric-label">Unverified</span>
+                </div>
+              </div>
+
+              <div className="roadsafe-map-chip">
+                <select aria-label="Map report source" value={sampleMode ? "samples" : "existing"}
+                  className="roadsafe-select"
+                  onChange={(event) => {
+                    const samples = event.target.value === "samples";
+                    setSampleMode(samples); setIncludePending(samples); setSelectedStatus("");
+                    setSelectedReportId(null); setSelectedStation(null);
+                    police.hide(); medical.hide(); radius.hide();
+                  }}>
+                  <option value="samples">Luzon samples</option>
+                  <option value="existing">Existing reports</option>
+                </select>
+                <span className={`roadsafe-map-status ${mapReady && !mapError ? "is-ready" : "is-wait"}`} aria-hidden="true" />
+                <span role="status">{mapError ? "Map setup error" : mapReady ? "Map connected" : "Loading basemap"}</span>
+                <button type="button" className="roadsafe-map-button" onClick={resetMap}>Reset view</button>
+              </div>
+            </header>
+
+            <div className="roadsafe-map-legend" aria-label="Accident severity colors">
+              <span>Severity</span>
+              {[["Low", "#86efac"], ["Medium", "#facc15"], ["High", "#fb923c"], ["Critical", "#fb7185"], ["Unknown", "#94a3b8"]].map(([label, color]) => <span key={label} className="item"><i className="dot" style={{ backgroundColor: color }} />{label}</span>)}
+            </div>
           </div>
+          {mapError && <div className="roadsafe-map-error" role="alert">{mapError}</div>}
           {hoveredRecord && !selectedRecord && <div className="absolute z-20 pointer-events-none w-[280px] max-w-[calc(100%-24px)]" style={{ left: `clamp(12px, ${hoveredIncident.x + 18}px, calc(100% - 292px))`, top: `clamp(12px, ${hoveredIncident.y + 18}px, max(12px, calc(100% - 280px)))` }}>
             <MapReportPreview report={hoveredRecord} />
           </div>}
@@ -1168,12 +1225,20 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
               onClose={() => setSelectedStation(null)}
             />
           )}
-        </div>
-
-        <aside className="roadsafe-map-sidebar">
-          <section className="roadsafe-map-panel">
-            <h3 className="roadsafe-map-panel-title">Report filters</h3>
-            <select aria-label="Map report status" value={selectedStatus} onChange={(event) => { setSelectedStatus(event.target.value); if (event.target.value) setIncludePending(true); }} style={{ width: "100%", marginBottom: 12, background: "#202328", color: "#e5e7eb", padding: 6 }}>
+          <aside className="roadsafe-map-dock" aria-label="Map controls">
+            <div className="roadsafe-map-dock-head">
+              <div className="roadsafe-map-tabs" role="tablist" aria-label="Map controls">
+                <button type="button" role="tab" id="roadsafe-tab-filters" aria-controls="roadsafe-panel-filters" aria-selected={dockTab === "filters"} className="roadsafe-map-tab" onClick={() => { setDockTab("filters"); setDockOpen(true); }}>Filters</button>
+                <button type="button" role="tab" id="roadsafe-tab-response" aria-controls="roadsafe-panel-response" aria-selected={dockTab === "response"} className="roadsafe-map-tab" onClick={() => { setDockTab("response"); setDockOpen(true); }}>Response</button>
+              </div>
+              <button type="button" className="roadsafe-map-collapse" aria-expanded={dockOpen} aria-label={dockOpen ? "Collapse map controls" : "Expand map controls"} onClick={() => setDockOpen(open => !open)}>
+                <i aria-hidden="true" className="fa-solid fa-chevron-up" />
+              </button>
+            </div>
+            <div className="roadsafe-map-dock-body" hidden={!dockOpen}>
+          <section className="roadsafe-map-panel" id="roadsafe-panel-filters" role="tabpanel" aria-labelledby="roadsafe-tab-filters" hidden={dockTab !== "filters"}>
+            <h3 className="sr-only">Report filters</h3>
+            <select aria-label="Map report status" value={selectedStatus} onChange={(event) => { setSelectedStatus(event.target.value); if (event.target.value) setIncludePending(true); }} className="roadsafe-select">
               <option value="">All statuses</option>{REPORT_STATUSES.map((status) => <option key={status}>{status}</option>)}
             </select>
 
@@ -1188,7 +1253,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
                 <span>{type.label}</span>
               </label>
             ))}
-            <p className="text-[10px] text-slate-500 mt-2">Icon shape = accident type · color = severity</p>
+            <p className="roadsafe-map-hint">Icon shape = accident type · color = severity</p>
 
             <label className="roadsafe-map-toggle">
               <input
@@ -1199,14 +1264,14 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
               Include unverified reports
             </label>
           </section>
-
-          <section className="roadsafe-map-panel">
-            <h3 className="roadsafe-map-panel-title">Emergency response</h3>
-            <p className="text-[11px] text-slate-400 mb-3">Drag police stations to incidents. Drag incidents to hospitals or clinics to recommend a location to the responding Officer.</p>
+          <section className="roadsafe-map-panel" id="roadsafe-panel-response" role="tabpanel" aria-labelledby="roadsafe-tab-response" hidden={dockTab !== "response"}>
+            <h3 className="sr-only">Emergency response</h3>
+            <p className="roadsafe-map-lede">Drag police stations to incidents. Drag incidents to hospitals or clinics to recommend a location to the responding Officer.</p>
 
             <label className="roadsafe-map-toggle roadsafe-response-radius">
               Search radius
               <select
+                className="roadsafe-select"
                 value={radiusKm}
                 onChange={(event) => setRadiusKm(Number(event.target.value))}
                 disabled={anyLoading}
@@ -1219,7 +1284,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
               </select>
             </label>
 
-            <div style={{ marginBottom: 9, color: "#858c96", fontSize: 11 }}>
+            <div className="roadsafe-map-hint" style={{ margin: "0 0 8px" }}>
               {`Around: ${police.usingSelectedReport ? 'selected report' : 'map center'}`}
             </div>
 
@@ -1260,40 +1325,40 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             </div>
 
             {radius.active && (
-              <div style={{ marginTop: 9, color: "#aeb4bd", fontSize: 12 }}>
+              <div className="roadsafe-note">
                 Showing {radiusKm} km radius
               </div>
             )}
 
             {police.deployed && police.stations.length > 0 && (
-              <div style={{ marginTop: 9, color: "#aeb4bd", fontSize: 12 }}>
+              <div className="roadsafe-note">
                 {police.stations.length} police station
                 {police.stations.length === 1 ? "" : "s"}{` within ${radiusKm} km`}
               </div>
             )}
 
             {medical.deployed && medical.stations.length > 0 && (
-              <div style={{ marginTop: 6, color: "#aeb4bd", fontSize: 12 }}>
+              <div className="roadsafe-note">
                 {medical.stations.length} medical facilit
                 {medical.stations.length === 1 ? "y" : "ies"}{` within ${radiusKm} km`}
               </div>
             )}
 
             {police.error && (
-              <div style={{ marginTop: 9, color: "#f87171", fontSize: 12 }}>
+              <div className="roadsafe-note is-error">
                 Police: {police.error}
               </div>
             )}
 
             {medical.error && (
-              <div style={{ marginTop: 6, color: "#f87171", fontSize: 12 }}>
+              <div className="roadsafe-note is-error">
                 Medical: {medical.error}
               </div>
             )}
           </section>
-
-        </aside>
-      </div>
+            </div>
+          </aside>
+        </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { backend } from './client.js'
 import { loginIdentity } from './username.js'
 import { canUseManager } from '../models/staffAccess.js'
+import AuthLanding, { Field, PanelNote, SubmitButton } from '../components/AuthLanding.jsx'
 
 export default function ManagerAuth({ children }) {
   const [session, setSession] = useState(null)
@@ -59,21 +60,17 @@ export default function ManagerAuth({ children }) {
   }
   if (loading) return <main className="min-h-screen bg-darkBg text-slate-200 grid place-items-center">Loading your account…</main>
   if (session && allowed) return children({ ...session.user, appRole: role })
-  return <main className="min-h-screen bg-darkBg text-slate-100 grid place-items-center p-6">
-    <section className="w-full max-w-md bg-darkCard border border-darkBorder rounded-2xl p-8 space-y-5">
-      <h1 className="text-2xl font-bold">RoadSafe Manager</h1>
-      {session ? <>
-        <p>{!enabled ? 'This account is suspended. Contact an administrator.' : 'This account does not have active staff access. Public accounts can use the mobile app to report and track accidents. An Admin manages staff access.'}</p>
-        <button onClick={() => backend.auth.signOut()} className="bg-orange-600 rounded-xl px-4 py-3">Sign out</button>
-      </> : <form onSubmit={signIn} className="space-y-4">
-        <p className="text-slate-400 text-sm">Sign in to review reports and coordinate response.</p>
-        <label className="block text-sm">Username<input autoComplete="username" type="text" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full bg-darkBg border border-darkBorder rounded-xl p-3 mt-2" /></label>
-        <label className="block text-sm">Password<input autoComplete="current-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full bg-darkBg border border-darkBorder rounded-xl p-3 mt-2" /></label>
-        <button disabled={busy} className="w-full bg-orange-600 rounded-xl p-3 disabled:opacity-50">{busy ? 'Signing in…' : 'Sign in'}</button>
-      </form>}
-      {error && <p role="alert" className="text-red-300 text-sm">{error}</p>}
-    </section>
-  </main>
+  return <AuthLanding status="Shared records">
+    {session ? <>
+      <p className="text-sm leading-relaxed text-slate-300">{!enabled ? 'This account is suspended. Contact an administrator.' : 'This account does not have active staff access. Public accounts can use the mobile app to report and track accidents. An Admin manages staff access.'}</p>
+      <div className="mt-6 flex"><SubmitButton type="button" onClick={() => backend.auth.signOut()}>Sign out</SubmitButton></div>
+    </> : <form onSubmit={signIn} className="space-y-5">
+      <p className="text-sm leading-relaxed text-slate-400">Sign in to review reports and coordinate response.</p>
+      <Field label="Username" icon="fa-user" required autoComplete="username" type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your staff username" />
+      <Field label="Password" icon="fa-lock" required type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" />
+      <div className="pt-1"><SubmitButton busy={busy}>{busy ? 'Signing in…' : 'Sign in'}</SubmitButton></div>
+      <PanelNote>Public accounts can use the mobile app to report and track accidents. An Admin manages staff access.</PanelNote>
+    </form>}
+    {error && <p role="alert" className="mt-4 rounded-xl border border-red-500/25 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-600 dark:text-red-300">{error}</p>}
+  </AuthLanding>
 }
-
-

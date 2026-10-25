@@ -23,6 +23,8 @@ import { ACCIDENT_CATEGORIES } from './models/report.js'
 import { loadCategories, saveCategory } from './backend/categories.js'
 import { CategoryContext } from './components/CategoryContext.js'
 import SettingsView from './components/SettingsView.jsx'
+import AuthLanding from './components/AuthLanding.jsx'
+import DemoEntryPanel from './components/DemoEntryPanel.jsx'
 
 export default function App() {
   return backend
@@ -32,6 +34,7 @@ export default function App() {
 
 function ManagerDashboard({ signedInUser }) {
   const live = Boolean(signedInUser)
+  const [signedOut, setSignedOut] = useState(false)
   const [categories, setCategories] = useState(ACCIDENT_CATEGORIES)
   const [categoryError, setCategoryError] = useState('')
   const refreshCategories = useCallback(async () => {
@@ -151,18 +154,20 @@ function ManagerDashboard({ signedInUser }) {
     }
     setActiveReport(null)
   }
+  // The web prototype has no real accounts: logging out shows the landing page with a way back in.
+  if (signedOut && !live) return <AuthLanding status="Web prototype"><DemoEntryPanel user={currentUser} onEnter={() => setSignedOut(false)} /></AuthLanding>
   return (
     <CategoryContext.Provider value={categories}><div data-tactical={view === 'map-view'} className="roadsafe-shell bg-darkBg text-slate-100 font-sans antialiased h-screen flex overflow-hidden">
       <Sidebar view={view} onChange={(nextView) => { if (nextView !== view) setActiveReport(null); setView(nextView) }} pendingCount={reportSummary(reports).pending} currentUser={currentUser} live={live} />
-      <div className="flex-1 flex flex-col relative overflow-hidden bg-darkBg min-w-0">
-        <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={live ? () => backend.auth.signOut() : undefined} live={live} notifications={notifications} unreadCount={unreadCount} onReadNotifications={markRead} notificationStorageWarning={storageWarning} onOpenNotificationReport={(id) => { setDemoPreview(false); setView('reports-view'); setActiveReport(id) }} />
+      <div className="roadsafe-stage flex-1 flex flex-col relative overflow-hidden bg-darkBg min-w-0">
+        <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={live ? () => backend.auth.signOut() : () => setSignedOut(true)} live={live} notifications={notifications} unreadCount={unreadCount} onReadNotifications={markRead} notificationStorageWarning={storageWarning} onOpenNotificationReport={(id) => { setDemoPreview(false); setView('reports-view'); setActiveReport(id) }} />
         <p className="sr-only" role="status">{source}</p>
         {categoryError && view !== 'settings-view' && <p role="alert" className="px-6 py-2 text-amber-300 text-xs">{categoryError}</p>}
         {view === 'settings-view' && <SettingsView categories={categories} onSave={updateCategory} error={categoryError} onRefresh={refreshCategories} live={live} />}
-        {['dashboard-view', 'reports-view'].includes(view) && <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-6 py-3 border-b border-darkBorder bg-darkCard text-xs">
-          <p className={previewing ? 'text-amber-300' : 'text-slate-400'}>{previewing ? `${displayed.data.length} fictional demo reports · preview changes last for this session` : source}</p>
+        {['dashboard-view', 'reports-view'].includes(view) && <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-6 py-2 border-b border-edge/[.08] bg-edge/[.03] text-xs">
+          <p className={previewing ? 'text-amber-700 dark:text-amber-300' : 'text-slate-400'}>{previewing ? `${displayed.data.length} fictional demo reports · preview changes last for this session` : source}</p>
           <label className="flex items-center gap-2 text-slate-200">Report source
-            <select aria-label="Dashboard and reports source" value={demoPreview ? 'demo' : 'current'} onChange={(event) => { setActiveReport(null); setDemoPreview(event.target.value === 'demo') }} className="rounded-lg border border-darkBorder bg-darkBg px-3 py-2">
+            <select aria-label="Dashboard and reports source" value={demoPreview ? 'demo' : 'current'} onChange={(event) => { setActiveReport(null); setDemoPreview(event.target.value === 'demo') }} className="rounded-xl border border-edge/15 bg-edge/[.06] px-3 py-1.5 text-slate-200">
               <option value="demo">Demo reports (49)</option><option value="current">{live ? 'Shared reports' : 'Current session reports'}</option>
             </select>
           </label>
