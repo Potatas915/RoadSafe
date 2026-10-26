@@ -8,6 +8,30 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createRequire } from 'node:module'
 
+test('station response starts only after assignment succeeds, including when feed refresh fails', async () => {
+  const source = readFileSync(new URL('../src/components/StationEnforcers.jsx', import.meta.url), 'utf8')
+  const body = source.match(/async function assign\(\) \{([\s\S]*?)\n  \}/)[1]
+  const report = { id: 'report' }, station = { id: 'station' }
+  for (const outcome of ['success', 'denied', 'refresh-failure']) {
+    const calls = []
+    let resolveSave, rejectSave
+    const saved = new Promise((resolve, reject) => { resolveSave = resolve; rejectSave = reject })
+    const assign = vm.runInNewContext('(async () => {' + body + '})', {
+      client: {}, report, station, selected: 'officer',
+      setBusy() {}, setError() {}, setMessage() {}, setSelected() {}, setRows() {},
+      assignStationEnforcer: () => saved,
+      onResponseStarted: (actualReport, actualStation) => { assert.equal(actualReport, report); assert.equal(actualStation, station); calls.push('responding') },
+      onAssigned: async () => { calls.push('refresh'); if (outcome === 'refresh-failure') throw Error('offline') },
+    })
+    const pending = assign()
+    assert.deepEqual(calls, [])
+    if (outcome === 'denied') rejectSave(Error('Verify this report first'))
+    else resolveSave()
+    await pending
+    assert.deepEqual(calls, outcome === 'denied' ? [] : ['responding', 'refresh'])
+  }
+})
+
 test('cancelling a shared request clears the officer through the versioned report workflow', async () => {
   for (const [status, next] of [['Assigned', 'Verified'], ['In Progress', 'Under Review']]) {
     let calls = 0

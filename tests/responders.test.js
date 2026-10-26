@@ -7,9 +7,22 @@ import vm from 'node:vm'
 import { transformSync } from 'esbuild'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { canRequestPersonnel, hasPendingArrival, createPersonnelRequest, advancePersonnelRequest, DEFAULT_RESPONDER, RESPONDER_STATUSES } from '../src/data/responders.js'
+import { canRequestPersonnel, hasPendingArrival, createPersonnelRequest, advancePersonnelRequest, DEFAULT_RESPONDER, RESPONDER_STATUSES, hasActiveOfficer } from '../src/data/responders.js'
 
 const scene = { reportId: 'RA-2026-001', label: 'Collision', coordinates: [120.88, 14.85] }
+
+test('shared progress and routes ignore saved requests until their accident has an active assigned officer', () => {
+  const source = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
+  const request = { reportId: 'report' }
+  const expression = source.match(/const stationRequest = ([^;]+);/)[1]
+  for (const report of [null, { id: 'report', status: 'Submitted' }, { id: 'report', status: 'Verified' }, { id: 'report', status: 'Assigned' }, { id: 'report', status: 'Resolved / Closed', assignedOfficerId: 'officer' }, { id: 'report', status: 'Assigned', assignedOfficerId: 'officer', isDuplicate: true }]) {
+    assert.equal(vm.runInNewContext(expression, { savedStationRequest: request, enforcerClient: {}, mapRecords: report ? [report] : [], hasActiveOfficer }), null)
+  }
+  for (const status of ['Assigned', 'In Progress']) {
+    assert.equal(vm.runInNewContext(expression, { savedStationRequest: request, enforcerClient: {}, mapRecords: [{ id: 'report', status, assignedOfficerId: 'officer' }], hasActiveOfficer }), request)
+  }
+  assert.equal(vm.runInNewContext(expression, { savedStationRequest: request, enforcerClient: null, mapRecords: [], hasActiveOfficer }), request)
+})
 test('personnel requests validate inputs and snapshot the selected scene', () => {
   const original = structuredClone(scene)
   const request = createPersonnelRequest(original, { personnel: 3, urgency: 'Emergency', note: '  Bring equipment  ' })
@@ -48,8 +61,10 @@ const render = (props) => renderToStaticMarkup(React.createElement(Card, { stati
 test('station cards retain scene boxes, show type names, and require a scene to request', () => {
   const html = render({})
   assert.match(html, /Police Station/)
-  assert.match(html, /Status: Available/)
-  assert.match(html, /Status: En Route/)
+  assert.ok(!html.includes('Number needed'))
+  assert.ok(!html.includes('Responder status'))
+  assert.ok(!html.includes('Police personnel needed:'))
+  assert.ok(!html.includes('Status: En Route'))
   assert.ok(!html.includes('Urgency'))
   assert.match(html, /Address not available/)
   assert.match(html, /Select a report to estimate distance/)
@@ -107,10 +122,15 @@ test('shared station cards retain official assignment alongside local request pr
   assert.match(html, /RA-2026-001/)
   for (const text of ['Request Personnel', 'Request progress', 'Complete scene', 'Cancel request', 'Browser only', 'Driving route displayed', request.id]) assert.ok(html.includes(text), text)
   const map = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
-  assert.ok(!map.includes('preview={!enforcerClient}'), 'shared requests use the same card and drag controls')
-  assert.ok(!map.includes('if (enforcerClient) return;'), 'shared drag creates a request and route')
   assert.ok(!map.includes('enforcerClient ? [] : responders.activeRequests'), 'shared routes stay enabled')
-  assert.ok(!map.includes('!enforcerClient && scene &&'), 'shared request button creates a request')
+})
+
+test('shared station card waits for officer assignment instead of offering a separate send action', () => {
+  const html = render({ scene, sharedRequest: true, data: DEFAULT_RESPONDER })
+  assert.match(html, /Assign an available officer above to send the request and start responding/)
+  assert.ok(!html.includes('Request police personnel'))
+  assert.ok(!html.includes('Request progress'))
+  assert.ok(!html.includes('Complete scene'))
 })
 
 test('cancel request disables repeated actions and shows server failures without discarding progress', async () => {

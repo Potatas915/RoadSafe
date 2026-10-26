@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { loadPoliceStations } from '../services/policeStations.js'
 import { syncPoliceDirectory, loadStationEnforcers, availableEnforcer, assignStationEnforcer } from '../backend/enforcers.js'
 
-export default function StationEnforcers({ client, station, report, users = [], onAssigned }) {
+export default function StationEnforcers({ client, station, report, users = [], onAssigned, onResponseStarted }) {
   const [rows, setRows] = useState([])
   const [selected, setSelected] = useState('')
   const [error, setError] = useState('')
@@ -40,7 +40,7 @@ export default function StationEnforcers({ client, station, report, users = [], 
       setSelected('')
       setMessage('Enforcer assigned. The case is available in their mobile workspace.')
       setRows(previous => previous.map(row => row.id === selected ? { ...row, busy: true } : row))
-      try { await onAssigned?.() } catch { setMessage('Assignment saved. Shared reports could not refresh; refresh the map before another assignment.') }
+      try { onResponseStarted?.(report, station); await onAssigned?.() } catch { setMessage('Assignment saved. Shared reports could not refresh; refresh the map before another assignment.') }
     } catch (failure) { setError(failure.message) }
     finally { setBusy(false) }
   }

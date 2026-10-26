@@ -9,6 +9,8 @@ export const STATUS_TONE = {
 }
 export const DEFAULT_RESPONDER = { status: 'Ready to request', stationStatus: 'Available', request: null }
 
+export const hasActiveOfficer = report => Boolean(report?.assignedOfficerId && !report.isDuplicate && ['Assigned', 'In Progress'].includes(report.status))
+
 export function createPersonnelRequest(scene, details) {
   if (!scene?.reportId || !Array.isArray(scene.coordinates) || scene.coordinates.length !== 2
     || !scene.coordinates.every(Number.isFinite) || Math.abs(scene.coordinates[0]) > 180 || Math.abs(scene.coordinates[1]) > 90

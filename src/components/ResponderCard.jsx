@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
   RESPONDER_STATUSES,
-  STATION_STATUSES,
   STATUS_TONE,
 } from '../data/responders.js'
 
@@ -46,20 +45,14 @@ export default function ResponderCard({
   scene,
   data,
   onStatus,
-  onStationStatus,
   onRequest,
   routeInfo,
   onRelease,
   onClose,
-  selectedPersonnel,
-  onPersonnelChange,
   enforcerPanel,
   sharedRequest = false,
   preview = true,
 }) {
-  const [localPersonnel, setLocalPersonnel] = useState(1)
-  const personnel = selectedPersonnel ?? localPersonnel
-  const setPersonnel = onPersonnelChange ?? setLocalPersonnel
   const [note, setNote] = useState('')
   const [showDetails, setShowDetails] = useState(false)
   const [releasing, setReleasing] = useState(false)
@@ -157,18 +150,12 @@ export default function ResponderCard({
             <span className={label}>Request Personnel</span>
             <span className="text-[10px] text-slate-500" title={sharedRequest ? 'Local route request; cancellation also releases the shared assignment.' : 'Browser-only request; no dispatch is sent.'}>{sharedRequest ? 'Shared report' : 'Browser only'}</span>
           </div>
-          {!request ? <>
-            <select aria-label="Number needed" value={personnel} onChange={(event) => setPersonnel(Number(event.target.value))} className={select}>
-              {[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{station.responderType === 'police' ? 'Police' : 'Medical'} personnel needed: {count}</option>)}
-            </select>
-            <select aria-label="Responder status" value={data.stationStatus ?? 'Available'} onChange={(event) => onStationStatus(event.target.value)} className={select}>
-              {STATION_STATUSES.map((value) => <option key={value} value={value}>Status: {value}</option>)}
-            </select>
+          {!request && !sharedRequest ? <>
             <details className="text-[11px] text-slate-400">
               <summary className="cursor-pointer">Note (optional){note && ' · added'}</summary>
               <textarea aria-label="Note (optional)" value={note} maxLength={500} rows={2} onChange={(event) => setNote(event.target.value)} placeholder="Additional personnel needs…" className={`${select} mt-2 resize-y`} />
             </details>
-          </> : <div role="status" className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 space-y-2 break-words">
+          </> : request ? <div role="status" className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 space-y-2 break-words">
             <span className="text-orange-400 block text-[10px] uppercase font-semibold">Personnel request</span>
             <p className="font-mono font-bold text-orange-400">{request.id}</p>
             <p>{request.personnel} {station.responderType === 'police' ? 'police' : 'medical'} personnel</p>
@@ -177,7 +164,7 @@ export default function ResponderCard({
             <ol aria-label="Request progress" className="flex flex-wrap gap-x-2 gap-y-1 text-[10px]">
               {RESPONDER_STATUSES.map((status, index) => <li key={status} aria-current={progressStatus === status ? 'step' : undefined} className={`${index <= RESPONDER_STATUSES.indexOf(progressStatus) ? 'text-orange-400' : 'text-slate-500'} ${status === 'Responding' && progressStatus === status ? 'responder-progress' : ''}`}>{index > 0 && <span aria-hidden="true">› </span>}{status === 'Completed' ? 'Complete' : status}</li>)}
             </ol>
-          </div>}
+          </div> : <p className="text-slate-400">Assign an available officer above to send the request and start responding.</p>}
         </div>}
       </div>
 
@@ -191,7 +178,7 @@ export default function ResponderCard({
         {request ? completed ? <p role="status" className="text-xs text-emerald-400">Scene complete · Station available. Drag this station to another report to respond again.</p> : <>
           <button type="button" disabled={releasing} onClick={() => onStatus('Completed')} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs transition disabled:opacity-50">Complete scene</button>
           <button type="button" disabled={releasing} onClick={cancelRequest} className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold text-xs transition disabled:opacity-50">{releasing ? 'Cancelling…' : 'Cancel request'}</button>
-        </> : <button type="button" onClick={() => onRequest({ personnel, note })} disabled={!hasScene} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs shadow transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-600">
+        </> : !sharedRequest && <button type="button" onClick={() => onRequest({ personnel: 1, note })} disabled={!hasScene} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs shadow transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-600">
           <i className="fa-solid fa-bullhorn mr-2" />Request {station.responderType === 'police' ? 'police' : 'medical'} personnel
         </button>}
         {!request && !hasScene && (
