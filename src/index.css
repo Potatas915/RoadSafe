@@ -234,6 +234,20 @@ input.bg-darkBg:not([class*="bg-darkBg/"]), select.bg-darkBg:not([class*="bg-dar
 @keyframes lp-drive { from { offset-distance: 0%; } to { offset-distance: 100%; } }
 @keyframes lp-ping { 0% { transform: scale(.7); opacity: .9; } 100% { transform: scale(2.6); opacity: 0; } }
 @keyframes lp-car { 0% { transform: translate(0, 0) scale(.15); opacity: 0; } 12% { opacity: 1; } 100% { transform: translate(var(--dx), 360px) scale(4.2); opacity: 0; } }
+@keyframes responder-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+.responder-progress {
+  border-radius: 4px;
+  padding-inline: 4px;
+  background: linear-gradient(90deg, transparent 30%, rgb(249 115 22 / .4) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: responder-sweep 1.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .responder-progress { animation: none; background: rgb(249 115 22 / .18); }
+}
 .lp-spot { opacity: 0; animation: lp-spot 20s infinite both; animation-delay: calc(var(--i) * 4s); }
 .lp-bar { transform-origin: left; animation: lp-bar 4s linear infinite; }
 .lp-dash { animation: lp-dash 1.6s linear infinite; }

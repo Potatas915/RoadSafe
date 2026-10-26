@@ -1,4 +1,4 @@
-export const RESPONDER_STATUSES = ['Request Sent', 'Responding', 'On Scene', 'Completed']
+export const RESPONDER_STATUSES = ['Request Sent', 'Responding', 'Completed']
 export const STATION_STATUSES = ['Available', 'Assistance Requested', 'En Route', 'On Scene', 'Returning to Base', 'Unavailable']
 export const STATUS_TONE = {
   'Ready to request': 'bg-slate-500/10 text-slate-400',
@@ -26,7 +26,11 @@ export function createPersonnelRequest(scene, details) {
 
 export function advancePersonnelRequest(current, nextStatus) {
   if (!current.request || RESPONDER_STATUSES.indexOf(nextStatus) !== RESPONDER_STATUSES.indexOf(current.status) + 1) return current
-  return { ...current, status: nextStatus }
+  return { ...current, status: nextStatus, ...(nextStatus === 'Completed' ? { stationStatus: 'Available' } : {}) }
+}
+
+export function canRequestPersonnel(entry) {
+  return !entry.request || entry.status === 'Completed'
 }
 
 // Routes represent personnel still travelling to the scene. Keep arrived requests for their summary.

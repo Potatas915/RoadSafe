@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { DEFAULT_RESPONDER, hasPendingArrival, createPersonnelRequest, advancePersonnelRequest, RESPONDER_STATUSES, STATION_STATUSES } from '../data/responders.js'
+import { DEFAULT_RESPONDER, hasPendingArrival, canRequestPersonnel, createPersonnelRequest, advancePersonnelRequest, RESPONDER_STATUSES, STATION_STATUSES } from '../data/responders.js'
 
 // v3 personnel requests are independent of historical v1/v2 staff assignments.
 // Previous storage remains untouched; nothing is sent to a server.
@@ -8,7 +8,11 @@ function read() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY))
     if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {}
-    return Object.fromEntries(Object.entries(stored).filter(([, value]) => value && (
+    return Object.fromEntries(Object.entries(stored).map(([id, value]) => [id, value && {
+      ...value,
+      status: ['Request Sent', 'On Scene'].includes(value.status) ? 'Responding' : value.status,
+      ...(value.status === 'Completed' ? { stationStatus: 'Available' } : {}),
+    }]).filter(([, value]) => value && (
       (value.status === DEFAULT_RESPONDER.status && value.request === null) ||
       (RESPONDER_STATUSES.includes(value.status) && value.request?.id && value.request?.requestedAt &&
         Number.isInteger(value.request.personnel) && value.request.personnel >= 1 && value.request.personnel <= 5 &&
@@ -47,8 +51,8 @@ export default function useResponderState(selectedStation) {
     if (station?.responderType !== 'police') return
     const request = createPersonnelRequest(scene, details)
     if (!request) return
-    setState((previous) => previous[id]?.request ? previous : {
-      ...previous, [id]: { ...DEFAULT_RESPONDER, ...previous[id], status: 'Request Sent', request, station },
+    setState((previous) => !canRequestPersonnel(previous[id] ?? DEFAULT_RESPONDER) ? previous : {
+      ...previous, [id]: { ...DEFAULT_RESPONDER, ...previous[id], status: 'Responding', request, station },
     })
   }, [])
   const release = useCallback((id) => {

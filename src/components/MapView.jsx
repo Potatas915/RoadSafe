@@ -28,6 +28,7 @@ import { previewRoute, fetchRoute, focusRoute, animateRoutes } from "../services
 import DispatchDrag from "./DispatchDrag.jsx";
 import { nearbyStreetFeatures } from "../services/affectedStreets.js";
 import ResponderCard from "./ResponderCard.jsx";
+import { canRequestPersonnel } from '../data/responders.js';
 import StationEnforcers from "./StationEnforcers.jsx";
 import MedicalFacilityCard from './MedicalFacilityCard.jsx';
 import { nearestFacilities, isMedicalFacility } from '../models/medicalFacilities.js';
@@ -1184,7 +1185,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
           <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
           <DispatchDrag mapRef={mapRef} ready={mapReady}
             getPersonnel={(station) => personnelByStation[station.id] ?? 1}
-            canDispatch={(station) => station.responderType === 'police' && !responders.get(station.id).request}
+            canDispatch={(station) => station.responderType === 'police' && canRequestPersonnel(responders.get(station.id))}
             onRecommend={(feature, station) => { const report = mapRecords.find(item => item.id === feature.properties.id); void recommendMedical(report, station); }}
             onDispatch={(station, feature) => {
               setSelectedReportId(feature.properties.id);

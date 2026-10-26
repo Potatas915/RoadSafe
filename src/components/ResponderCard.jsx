@@ -66,7 +66,8 @@ export default function ResponderCard({
   const request = data.request
   const activeScene = request ? { reportId: request.reportId, label: request.sceneLabel, coordinates: request.sceneCoordinates } : scene
   const hasScene = Boolean(activeScene?.coordinates)
-  const nextStatus = request ? RESPONDER_STATUSES[RESPONDER_STATUSES.indexOf(data.status) + 1] : null
+  const completed = data.status === 'Completed'
+  const progressStatus = data.status === 'Request Sent' ? 'Responding' : data.status
   const typeName = station.responderType === 'police' ? 'Police Station' : ({ hospital: 'Hospital', clinic: 'Clinic', 'ambulance station': 'Ambulance Station' }[station.kind?.toLowerCase()] || ui.label)
   const distance = hasScene
     ? distanceKm([station.lng, station.lat], activeScene.coordinates)
@@ -89,7 +90,7 @@ export default function ResponderCard({
           <span
             className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_TONE[data.status]}`}
           >
-            {request ? data.status : (data.stationStatus ?? 'Available')}
+            {completed ? 'Available' : request ? progressStatus : (data.stationStatus ?? 'Available')}
           </span>
         </div>
         <button
@@ -163,7 +164,7 @@ export default function ResponderCard({
             <p className="text-slate-400 text-[11px]">{new Date(request.requestedAt).toLocaleString()}</p>
             {request.note && <p className="text-slate-300 whitespace-pre-wrap">{request.note}</p>}
             <ol aria-label="Request progress" className="flex flex-wrap gap-x-2 gap-y-1 text-[10px]">
-              {RESPONDER_STATUSES.map((status, index) => <li key={status} aria-current={data.status === status ? 'step' : undefined} className={index <= RESPONDER_STATUSES.indexOf(data.status) ? 'text-orange-400' : 'text-slate-500'}>{index > 0 && <span aria-hidden="true">› </span>}{status}</li>)}
+              {RESPONDER_STATUSES.map((status, index) => <li key={status} aria-current={progressStatus === status ? 'step' : undefined} className={`${index <= RESPONDER_STATUSES.indexOf(progressStatus) ? 'text-orange-400' : 'text-slate-500'} ${status === 'Responding' && progressStatus === status ? 'responder-progress' : ''}`}>{index > 0 && <span aria-hidden="true">› </span>}{status === 'Completed' ? 'Complete' : status}</li>)}
             </ol>
           </div>}
         </div>
@@ -175,9 +176,9 @@ export default function ResponderCard({
           <p>{routeInfo.isFallback ? 'Direct-line preview · road route unavailable or loading' : 'Driving route displayed · OSRM'}</p>
           <button type="button" aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)} className="md:hidden text-slate-300 underline">{showDetails ? 'Hide request details' : 'Show request details'}</button>
         </div>}
-        {request ? <>
-          {nextStatus && <button type="button" onClick={() => onStatus(nextStatus)} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs transition">Mark {nextStatus}</button>}
-          <button type="button" onClick={onRelease} className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold text-xs transition">{data.status === 'Completed' ? 'New request' : 'Cancel request'}</button>
+        {request ? completed ? <p role="status" className="text-xs text-emerald-400">Scene complete · Station available. Drag this station to another report to respond again.</p> : <>
+          <button type="button" onClick={() => onStatus('Completed')} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs transition">Complete scene</button>
+          <button type="button" onClick={onRelease} className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold text-xs transition">Cancel request</button>
         </> : <button type="button" onClick={() => onRequest({ personnel, note })} disabled={!hasScene} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs shadow transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-600">
           <i className="fa-solid fa-bullhorn mr-2" />Request {station.responderType === 'police' ? 'police' : 'medical'} personnel
         </button>}
