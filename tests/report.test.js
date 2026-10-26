@@ -24,13 +24,25 @@ function component(relative) {
 const ReportModal = component('../src/components/ReportModal.jsx')
 const ReportsView = component('../src/components/ReportsView.jsx')
 
-test('report references display the full UUID in the table, details, and officer dispatch', () => {
+test('report references display the full UUID in details and officer dispatch', () => {
   const id = 'c12e363d-c13c-43b3-870c-399b7ecadf1a'
   const report = { ...first, id, status: 'Assigned', assignedOfficerId: 'officer' }
   const users = [{ id: 'officer', name: 'Officer', role: ROLES.OFFICER, responderType: 'police', unit: 'Unassigned', enabled: true }]
-  for (const View of [ReportsView, component('../src/components/OfficersView.jsx'), ReportModal]) {
+  for (const View of [component('../src/components/OfficersView.jsx'), ReportModal]) {
     const html = renderToStaticMarkup(React.createElement(View, { report, reports: [report], users }))
     assert.ok(html.includes(`>${id}<`) || html.includes(`>#${id}<`), 'full visible reference, not just a tooltip or aria-label')
+  }
+})
+
+test('report table keeps compact IDs on one line while preserving full copy and tooltip IDs', () => {
+  const id = 'c12e363d-c13c-43b3-870c-399b7ecadf1a'
+  for (const detailPanel of [null, React.createElement('aside', null, 'Details')]) {
+    const html = renderToStaticMarkup(React.createElement(ReportsView, { reports: [{ ...first, id }], users: reportsResponse.included.users, detailPanel }))
+    assert.ok(html.includes('>#c12e363d</span>'))
+    assert.ok(!html.includes(`>#${id}</span>`))
+    assert.ok(html.includes(`title="${id}"`))
+    assert.ok(html.includes(`aria-label="Copy report ID ${id}"`))
+    assert.match(html, /class="[^"]*whitespace-nowrap[^"]*" title="c12e363d/)
   }
 })
 
