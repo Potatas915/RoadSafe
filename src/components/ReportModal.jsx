@@ -69,6 +69,8 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
   }
   const control = 'w-full bg-darkBg border border-darkBorder rounded-xl p-2.5 text-slate-200'
   const coords = report.location.coordinates
+  const additionalInformation = (report.events ?? []).filter(event => event.type === 'clarification_response' && event.message?.trim())
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
   const Container = embedded ? 'section' : 'dialog'
   return (
     <Container ref={dialog} aria-labelledby="report-title" onCancel={(event) => { event.preventDefault(); onClose() }} className={embedded ? "dx-card text-slate-100 w-full min-w-0 overflow-y-auto xl:max-h-[75vh]" : "m-auto bg-darkCard text-slate-100 border border-darkBorder rounded-2xl w-full max-w-2xl max-h-[90vh] p-0 backdrop:bg-slate-950/80"}>
@@ -96,6 +98,7 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
             </dl>
           </section>
           <section><h3 className="text-slate-400 mb-1">Description</h3><p>{report.description}</p></section>
+          {additionalInformation.length > 0 && <section><h3 className="text-slate-400 mb-1">Additional information</h3><ul className="space-y-3">{additionalInformation.map(event => <li key={event.id}><p className="whitespace-pre-wrap break-words">{event.message}</p><p className="mt-1 text-[11px] text-slate-400">{formatDateTime(event.createdAt)}</p></li>)}</ul></section>}
           {report.isDuplicate && <section className="border border-amber-700 rounded-xl p-3 space-y-2">
             <h3 className="font-semibold text-amber-300">Marked as duplicate</h3>
             <p>{report.rejectionReason}</p>

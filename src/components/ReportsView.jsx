@@ -1,7 +1,7 @@
 import { REPORT_QUEUES, sortReportQueue, lastReportUpdate } from '../models/reportQueue.js'
 import { useCategories, useCategoryLabel } from './CategoryContext.js'
 import { useState } from 'react'
-import { REPORT_STATUSES, formatDateTime, isOfficiallyVerified, officerName, validCoordinates } from '../models/report.js'
+import { REPORT_STATUSES, formatDateTime, officerName, validCoordinates } from '../models/report.js'
 import { DATE_BASES, dateRangeError, filterReportsByDate } from '../services/reportExport.js'
 
 // One color per status, in the same order as the Dashboard's status breakdown.
@@ -68,10 +68,9 @@ export default function ReportsView({ reports, users, onOpenReport, selectedRepo
         {error && <p role="alert" className="px-5 py-2 text-xs text-orange-600 dark:text-orange-300">{error}</p>}
         <div className="overflow-x-auto reports-table-scroll">
           <table className="reports-table w-full text-left text-xs">
-            <thead><tr>{['Report ID', 'Reporter info', 'Incident time', 'Location', 'Accident type', 'Status / verification', 'Assigned officer', 'Last activity / age', 'Details'].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead>
+            <thead><tr>{['Report ID', 'Reporter info', 'Incident time', 'Location', 'Accident type', 'Status', 'Assigned officer', 'Last activity / age', 'Details'].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead>
             <tbody>
               {visible.map((r) => {
-                const verified = isOfficiallyVerified(r)
                 const address = r.location.address?.trim()
                 const officer = officerName(users, r.assignedOfficerId)
                 return <tr key={r.id} aria-selected={selectedReportId === r.id}>
@@ -85,10 +84,7 @@ export default function ReportsView({ reports, users, onOpenReport, selectedRepo
                   <td className="whitespace-nowrap font-medium text-strong">{categoryLabel(r.categoryId)}</td>
                   <td>
                     <span className="reports-status"><i aria-hidden="true" style={{ backgroundColor: statusColor(r.status) }} />{r.status}</span>
-                    <span className="mt-1.5 flex items-center gap-2 text-[11px]">
-                      <span title={verified ? 'Officially verified' : 'Public submission — unverified'} className={verified ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300'}><i aria-hidden="true" className={`fa-solid ${verified ? 'fa-circle-check' : 'fa-circle-question'} mr-1`} />{verified ? 'Officially verified' : 'Unverified'}</span>
-                      {r.isDuplicate && <span className="text-amber-700 dark:text-amber-300"><i aria-hidden="true" className="fa-regular fa-clone mr-1" />Duplicate report</span>}
-                    </span>
+                    {r.isDuplicate && <span className="mt-1.5 block text-[11px] text-amber-700 dark:text-amber-300"><i aria-hidden="true" className="fa-regular fa-clone mr-1" />Duplicate report</span>}
                   </td>
                   <td className={officer === 'Unassigned' ? 'text-slate-500' : 'font-medium text-strong'}>{officer}</td>
                   <td className="reports-when"><span className="block text-slate-200">{formatDateTime(new Date(lastReportUpdate(r)).toISOString())}</span><span className="block text-[11px] text-slate-400">Submitted {age(r.submittedAt)}</span></td>

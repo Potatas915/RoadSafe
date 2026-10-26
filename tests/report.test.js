@@ -24,6 +24,35 @@ function component(relative) {
 const ReportModal = component('../src/components/ReportModal.jsx')
 const ReportsView = component('../src/components/ReportsView.jsx')
 
+test('report details show reporter clarification below the original description', () => {
+  const events = [
+    { id: 'request', type: 'review_updated', createdAt: '2026-10-27T01:00:00Z', message: 'Please clarify the vehicle colour.' },
+    { id: 'reply', type: 'clarification_response', createdAt: '2026-10-27T02:00:00Z', message: 'The blue car was on the right.\n<More details>' },
+  ]
+  const render = events => renderToStaticMarkup(React.createElement(ReportModal, { report: { ...first, events }, users: reportsResponse.included.users }))
+  const html = render(events)
+  const description = html.indexOf('>Description</h3>')
+  const additional = html.indexOf('>Additional information</h3>')
+  const history = html.indexOf('>Report history and clarification</h3>')
+  assert.ok(description >= 0 && additional > description && history > additional)
+  const section = html.slice(additional, html.indexOf('</section>', additional))
+  assert.match(section, /The blue car was on the right/)
+  assert.match(section, /&lt;More details&gt;/)
+  assert.ok(!section.includes('Please clarify'))
+  assert.ok(html.includes(first.description))
+  assert.ok(!render([events[0]]).includes('>Additional information</h3>'))
+  assert.ok(!render([]).includes('>Additional information</h3>'))
+})
+
+test('report table shows status without a redundant verification subtitle', () => {
+  const html = renderToStaticMarkup(React.createElement(ReportsView, { reports: reportsResponse.data, users: reportsResponse.included.users }))
+  assert.match(html, />Status<\/th>/)
+  for (const status of ['Verified', 'Rejected']) assert.ok(html.includes(`</i>${status}</span>`))
+  for (const text of ['Officially verified', 'Unverified', 'Status / verification']) assert.ok(!html.includes(text), text)
+  const duplicate = renderToStaticMarkup(React.createElement(ReportsView, { reports: [{ ...first, isDuplicate: true }], users: reportsResponse.included.users }))
+  assert.match(duplicate, /Duplicate report/)
+})
+
 test('one API fixture covers all statuses, categories and roles with valid references', () => {
   const response = parseReportsResponse(clone())
   assert.equal(response.data.length, 49)
