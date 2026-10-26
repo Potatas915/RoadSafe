@@ -226,3 +226,13 @@ test('admin workflow offers review decisions rather than a status dropdown', () 
   for (const status of ['Verified', 'Assigned', 'In Progress']) assert.match(render(status), />Return to review</)
   for (const status of ['Resolved / Closed', 'Rejected']) assert.ok(!render(status).includes('>Return to review<'))
 })
+
+test('dispatch lists registered active officers without substituting demo officers or claiming duty availability', () => {
+  const OfficersView = component('../src/components/OfficersView.jsx')
+  const registered = { id: 'registered-enforcer', name: 'Registered Traffic Enforcer', unit: 'Existing unit', role: ROLES.OFFICER, responderType: 'police', enabled: true }
+  const html = renderToStaticMarkup(React.createElement(OfficersView, { reports: reportsResponse.data, users: [registered, { ...registered, id: 'medical', name: 'Legacy medical responder', responderType: 'medical' }, { ...registered, id: 'suspended', name: 'Suspended enforcer', enabled: false }] }))
+  assert.match(html, /Registered Traffic Enforcer/)
+  for (const name of ['Officer Mark Santos', 'Officer Juan Dela Cruz', 'Medic Ana Reyes', 'Medic Paolo Cruz', 'Ambulance Unit A-1', 'Suspended enforcer', 'Legacy medical responder', 'All units', 'Unit type', 'Medical']) assert.ok(!html.includes(name), name)
+  assert.match(html, /No listed cases/)
+  assert.match(html, /online and on-duty availability/)
+})

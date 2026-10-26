@@ -6,7 +6,7 @@ import vm from 'node:vm'
 import { transformSync } from 'esbuild'
 import React from 'react'
 
-test('report review does not reopen a dashboard summary after sidebar navigation', () => {
+test('report review and Officer Dispatch preserve the selected demo/current source', async () => {
   const values = []
   let cursor = 0
   const hooks = {
@@ -33,7 +33,7 @@ test('report review does not reopen a dashboard summary after sidebar navigation
     },
   })
   const dashboard = module.exports.default().type
-  const render = () => { cursor = 0; return dashboard({}) }
+  const render = (props = {}) => { cursor = 0; return dashboard(props) }
   function find(node, type) {
     if (!React.isValidElement(node)) return null
     if (node.type === type) return node
@@ -97,6 +97,25 @@ test('report review does not reopen a dashboard summary after sidebar navigation
   find(tree, 'Sidebar').props.onChange('reports-view')
   tree = render()
   assert.equal(find(tree, 'DashboardReportSummary'), null)
+  find(tree, 'Sidebar').props.onChange('officers-view')
+  tree = render({ signedInUser: { id: 'admin-demo' } })
+  assert.strictEqual(find(tree, 'OfficersView').props.reports, managementReports)
+  assert.notStrictEqual(find(tree, 'OfficersView').props.users, find(tree, 'MapView').props.users)
+  assert.equal(find(tree, 'select').props.value, 'demo')
+  find(tree, 'OfficersView').props.onOpenReport(id)
+  tree = render({ signedInUser: { id: 'admin-demo' } })
+  const modal = find(tree, 'ReportModal')
+  assert.equal(modal.props.live, false)
+  assert.equal(modal.props.onCorrect, undefined)
+  await modal.props.onSave(id, { status: modal.props.report.status, assignedOfficerId: modal.props.report.assignedOfficerId, officialRemarks: 'Demo dispatch review', rejectionReason: null })
+  tree = render({ signedInUser: { id: 'admin-demo' } })
+  assert.equal(find(tree, 'OfficersView').props.reports.find(report => report.id === id).officialRemarks, 'Demo dispatch review')
+  find(tree, 'select').props.onChange({ target: { value: 'current' } })
+  tree = render()
+  assert.strictEqual(find(tree, 'OfficersView').props.reports, currentReports)
+  find(tree, 'OfficersView').props.onOpenReport(id)
+  tree = render({ signedInUser: { id: 'admin-demo' } })
+  assert.equal(find(tree, 'ReportModal').props.live, true)
 })
 
 

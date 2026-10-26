@@ -10,14 +10,8 @@ const shortId = (id) => (id.length > 16 ? id.slice(0, 8) : id)
 const initials = (name) => name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 const bySeverityThenAge = (a, b) => (b.severity.score ?? -1) - (a.severity.score ?? -1) || new Date(a.report.submittedAt) - new Date(b.report.submittedAt)
 
-const UNIT_TYPES = [
-  { id: 'all', label: 'All units', icon: 'fa-users' },
-  { id: 'police', label: 'Police', icon: 'fa-shield-halved' },
-  { id: 'medical', label: 'Medical', icon: 'fa-truck-medical' },
-]
 const TYPE_STYLE = {
   police: { icon: 'fa-shield-halved', ring: 'from-blue-500 to-sky-400', chip: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25', label: 'Police' },
-  medical: { icon: 'fa-truck-medical', ring: 'from-rose-500 to-orange-400', chip: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25', label: 'Medical' },
 }
 
 function Avatar({ officer, size = 'h-10 w-10 text-xs' }) {
@@ -28,7 +22,7 @@ function Avatar({ officer, size = 'h-10 w-10 text-xs' }) {
 function StatusChip({ busy }) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-semibold ${busy ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${busy ? 'bg-amber-500' : 'bg-emerald-500'}`} />{busy ? 'On assignment' : 'Available'}
+      <span className={`h-1.5 w-1.5 rounded-full ${busy ? 'bg-amber-500' : 'bg-emerald-500'}`} />{busy ? 'Listed cases' : 'No listed cases'}
     </span>
   )
 }
@@ -45,7 +39,7 @@ function RosterRow({ officer, count, selected, onSelect }) {
         </span>
         {count > 0
           ? <span className="grid h-6 min-w-[24px] place-items-center rounded-full bg-amber-500/15 px-1.5 text-[11px] font-bold tabular-nums text-amber-700 dark:text-amber-300" title={`${count} active ${count === 1 ? 'case' : 'cases'}`}>{count}</span>
-          : <span className="h-2 w-2 rounded-full bg-emerald-500" title="Available" />}
+          : <span className="h-2 w-2 rounded-full bg-emerald-500" title="No cases in the selected report source" />}
       </button>
     </li>
   )
@@ -104,7 +98,7 @@ function CasesPanel({ entry, label, onOpenReport }) {
       )}
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-        {cases.length === 0 && <p className="rounded-xl border border-dashed border-edge/15 px-4 py-10 text-center text-xs text-slate-400"><i className="fa-regular fa-circle-check mb-2 block text-xl text-emerald-500" aria-hidden="true" />No active cases. This officer is ready for dispatch.</p>}
+        {cases.length === 0 && <p className="rounded-xl border border-dashed border-edge/15 px-4 py-10 text-center text-xs text-slate-400"><i className="fa-regular fa-circle-check mb-2 block text-xl text-emerald-500" aria-hidden="true" />No cases in this report source. Check the station roster on the map for online and on-duty availability.</p>}
         {cases.length > 0 && !groups.length && <p className="py-8 text-center text-xs text-slate-400">No cases match “{query}”.</p>}
         {groups.map(({ status, items }) => (
           <section key={status}>
@@ -127,7 +121,7 @@ function QueuePanel({ queue, label, onOpenReport }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b border-edge/[.08] p-4">
         <h2 className="text-base font-semibold text-strong">Awaiting dispatch</h2>
-        <p className="mt-1 text-xs text-slate-400">Verified cases that have no officer yet, most severe first. Open one to assign someone.</p>
+        <p className="mt-1 text-xs text-slate-400">Verified cases that have no officer yet, most severe first. Open a case, then use Assign on map to choose a station and an available enforcer.</p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {queue.length
@@ -141,12 +135,12 @@ function QueuePanel({ queue, label, onOpenReport }) {
 export default function OfficersView({ reports, users, onOpenReport }) {
   const label = useCategoryLabel()
   const [query, setQuery] = useState('')
-  const [unitType, setUnitType] = useState('all')
+
   const [availability, setAvailability] = useState('all')
   const [selectedId, setSelectedId] = useState(null)
   const [panel, setPanel] = useState('cases')
 
-  const officers = useMemo(() => users.filter((user) => user.role === ROLES.OFFICER).map((officer) => ({
+  const officers = useMemo(() => users.filter((user) => user.role === ROLES.OFFICER && user.responderType === 'police' && user.enabled !== false).map((officer) => ({
     officer,
     cases: reports
       .filter((report) => report.assignedOfficerId === officer.id && !closedStatuses.includes(report.status))
@@ -159,16 +153,16 @@ export default function OfficersView({ reports, users, onOpenReport }) {
     .sort(bySeverityThenAge), [reports])
 
   const needle = query.trim().toLowerCase()
-  const matchesUnit = ({ officer }) => (unitType === 'all' || officer.responderType === unitType) && (!needle || `${officer.name} ${officer.unit}`.toLowerCase().includes(needle))
+  const matchesUnit = ({ officer }) => (!needle || `${officer.name} ${officer.unit}`.toLowerCase().includes(needle))
   const pool = officers.filter(matchesUnit)
   const tabs = [
     ['all', 'All officers', pool.length],
-    ['available', 'Available', pool.filter((row) => !row.cases.length).length],
-    ['busy', 'On assignment', pool.filter((row) => row.cases.length).length],
+    ['available', 'No listed cases', pool.filter((row) => !row.cases.length).length],
+    ['busy', 'With cases', pool.filter((row) => row.cases.length).length],
   ]
   const visible = pool.filter((row) => availability === 'all' || (availability === 'available') === (row.cases.length === 0))
   const selected = visible.find((row) => row.officer.id === selectedId) ?? visible.find((row) => row.cases.length) ?? visible[0] ?? null
-  const filtered = unitType !== 'all' || availability !== 'all' || needle
+  const filtered = availability !== 'all' || needle
 
   const pick = (id) => { setSelectedId(id); setPanel('cases') }
 
@@ -177,7 +171,7 @@ export default function OfficersView({ reports, users, onOpenReport }) {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-strong">Officer Dispatch</h1>
-          <p className="mt-1.5 text-sm text-slate-400">Pick an officer to see their cases, or open the queue to find cases that need someone.</p>
+          <p className="mt-1.5 text-sm text-slate-400">Registered officers come from shared accounts. Case counts and the accident queue follow the selected report source; online and on-duty availability is checked on the map.</p>
         </div>
         <button type="button" onClick={() => setPanel('queue')} className={`inline-flex items-center gap-2.5 rounded-2xl border px-4 py-2.5 text-left transition ${queue.length ? 'border-orange-400/40 bg-orange-500/10 hover:bg-orange-500/15' : 'border-edge/10 bg-edge/[.04] hover:bg-edge/[.07]'}`}>
           <i className={`fa-solid fa-hourglass-half ${queue.length ? 'text-orange-600 dark:text-orange-300' : 'text-slate-400'}`} aria-hidden="true" />
@@ -194,17 +188,6 @@ export default function OfficersView({ reports, users, onOpenReport }) {
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search officer or unit" className="h-9 w-full rounded-xl border border-edge/10 bg-edge/[.04] pl-8 pr-3 text-xs text-strong placeholder:text-slate-500 focus:border-orange-400/60 focus:outline-none" />
             </label>
 
-            <div>
-              <p id="unit-type-label" className="mb-1.5 text-[11px] font-medium text-slate-400">Unit type <span className="font-normal text-slate-500">· choose one</span></p>
-              <div role="radiogroup" aria-labelledby="unit-type-label" className="grid grid-cols-3 gap-1 rounded-xl bg-edge/[.07] p-1">
-                {UNIT_TYPES.map(({ id, label: text, icon }) => (
-                  <button key={id} type="button" role="radio" aria-checked={unitType === id} onClick={() => setUnitType(id)} className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium transition ${unitType === id ? 'bg-darkCard text-strong shadow ring-1 ring-edge/10' : 'text-slate-400 hover:text-strong'}`}>
-                    <i className={`fa-solid ${icon} text-[10px]`} aria-hidden="true" />{text}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div role="tablist" aria-label="Availability" className="flex gap-4 border-b border-edge/10">
               {tabs.map(([id, text, count]) => (
                 <button key={id} type="button" role="tab" aria-selected={availability === id} onClick={() => setAvailability(id)} className={`-mb-px flex items-center gap-1.5 border-b-2 pb-2 text-[11px] font-medium transition ${availability === id ? 'border-orange-500 text-strong' : 'border-transparent text-slate-400 hover:text-strong'}`}>
@@ -216,13 +199,13 @@ export default function OfficersView({ reports, users, onOpenReport }) {
 
           <ul className="min-h-0 max-h-[360px] flex-1 space-y-1 overflow-y-auto p-2 xl:max-h-none" aria-label="Officers">
             {visible.map(({ officer, cases }) => <RosterRow key={officer.id} officer={officer} count={cases.length} selected={panel === 'cases' && selected?.officer.id === officer.id} onSelect={() => pick(officer.id)} />)}
-            {!visible.length && <li className="px-3 py-8 text-center text-xs text-slate-400">{officers.length ? 'No officers match.' : 'No officers are registered yet.'}</li>}
+            {!visible.length && <li className="px-3 py-8 text-center text-xs text-slate-400">{officers.length ? 'No officers match.' : 'No registered officers loaded. Sign in or refresh shared records.'}</li>}
           </ul>
 
           {filtered && (
             <div className="flex items-center justify-between border-t border-edge/[.08] px-3 py-2 text-[11px] text-slate-400">
               <span>Showing {visible.length} of {officers.length}</span>
-              <button type="button" onClick={() => { setQuery(''); setUnitType('all'); setAvailability('all') }} className="font-medium text-orange-700 hover:underline dark:text-orange-300">Clear filters</button>
+              <button type="button" onClick={() => { setQuery(''); setAvailability('all') }} className="font-medium text-orange-700 hover:underline dark:text-orange-300">Clear filters</button>
             </div>
           )}
         </section>
