@@ -8,6 +8,7 @@ const closedStatuses = [REPORT_STATUS.CLOSED, REPORT_STATUS.REJECTED]
 const STATUS_ORDER = [REPORT_STATUS.IN_PROGRESS, REPORT_STATUS.ASSIGNED, REPORT_STATUS.VERIFIED, REPORT_STATUS.UNDER_REVIEW, REPORT_STATUS.INFORMATION_REQUIRED, REPORT_STATUS.SUBMITTED]
 const shortId = (id) => (id.length > 16 ? id.slice(0, 8) : id)
 const initials = (name) => name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
+const officerSummary = (officer, count) => [count ? `${count} active case${count === 1 ? '' : 's'}` : 'No active cases', officer.unit?.trim() && officer.unit.trim().toLowerCase() !== 'unassigned' ? `Unit: ${officer.unit.trim()}` : null].filter(Boolean).join(' · ')
 const bySeverityThenAge = (a, b) => (b.severity.score ?? -1) - (a.severity.score ?? -1) || new Date(a.report.submittedAt) - new Date(b.report.submittedAt)
 
 const TYPE_STYLE = {
@@ -35,7 +36,7 @@ function RosterRow({ officer, count, selected, onSelect }) {
         <Avatar officer={officer} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold text-strong">{officer.name}</span>
-          <span className="flex items-center gap-1.5 truncate text-[11px] text-slate-400"><i className={`fa-solid ${type.icon} text-[9px]`} aria-hidden="true" />{officer.unit}</span>
+          <span className="flex items-center gap-1.5 truncate text-[11px] text-slate-400"><i className={`fa-solid ${type.icon} text-[9px]`} aria-hidden="true" />{officerSummary(officer, count)}</span>
         </span>
         {count > 0
           ? <span className="grid h-6 min-w-[24px] place-items-center rounded-full bg-amber-500/15 px-1.5 text-[11px] font-bold tabular-nums text-amber-700 dark:text-amber-300" title={`${count} active ${count === 1 ? 'case' : 'cases'}`}>{count}</span>
@@ -78,7 +79,7 @@ function CasesPanel({ entry, label, onOpenReport }) {
         <Avatar officer={officer} size="h-12 w-12 text-sm" />
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-base font-semibold text-strong">{officer.name}</h2>
-          <p className="truncate text-xs text-slate-400">{officer.unit}</p>
+          <p className="truncate text-xs text-slate-400">{officerSummary(officer, cases.length)}</p>
           <div className="mt-2 flex flex-wrap gap-2"><span className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-semibold ${type.chip}`}><i className={`fa-solid ${type.icon}`} aria-hidden="true" />{type.label}</span><StatusChip busy={cases.length > 0} /></div>
         </div>
         <dl className="flex gap-2">

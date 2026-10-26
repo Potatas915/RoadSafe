@@ -236,3 +236,17 @@ test('dispatch lists registered active officers without substituting demo office
   assert.match(html, /No listed cases/)
   assert.match(html, /online and on-duty availability/)
 })
+
+test('dispatch subtitles follow assigned cases instead of the legacy Unassigned unit placeholder', () => {
+  const OfficersView = component('../src/components/OfficersView.jsx')
+  const officer = { id: 'assigned-officer', name: 'Assigned Enforcer', unit: 'Unassigned', role: ROLES.OFFICER, responderType: 'police', enabled: true }
+  const render = (reports, user = officer) => renderToStaticMarkup(React.createElement(OfficersView, { reports, users: [user] }))
+  const assigned = { ...first, status: 'Assigned', assignedOfficerId: officer.id }
+  const html = render([assigned])
+  assert.ok(!html.includes('Unassigned'))
+  assert.equal((html.match(/1 active case</g) ?? []).length, 2, 'roster and selected officer use the same case count')
+  const cleared = render([{ ...assigned, assignedOfficerId: null }])
+  assert.equal((cleared.match(/No active cases</g) ?? []).length, 2)
+  assert.ok(!render([{ ...assigned, status: 'Resolved / Closed' }]).includes('1 active case'))
+  assert.match(render([assigned], { ...officer, unit: 'Traffic Unit A' }), /Unit: Traffic Unit A/)
+})
