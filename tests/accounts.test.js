@@ -166,9 +166,17 @@ test('actual staff gate rechecks suspension and demotion on retained sessions', 
   assert.match(renderToStaticMarkup(render()),/suspended/)
   role={ role:'Public',enabled:true,version:4 }; timers[0](); await new Promise(resolve => setTimeout(resolve,0))
   assert.match(renderToStaticMarkup(render()),/does not have active staff access/)
+  states[5] = 'previous_staff'
+  states[6] = 'previous_password'
   authChanged('SIGNED_OUT', null)
   await new Promise(resolve => setTimeout(resolve,0))
   assert.match(renderToStaticMarkup(render()),/Sign in to review reports/)
+  assert.equal(states[5], '', 'sign-out clears username/email')
+  assert.equal(states[6], '', 'sign-out clears password')
+  states[5] = 'new_login_draft'
+  authChanged('INITIAL_SESSION', null)
+  await new Promise(resolve => setTimeout(resolve,0))
+  assert.equal(states[5], 'new_login_draft', 'an empty initial session must not erase typing')
   cleanup()
 })
 

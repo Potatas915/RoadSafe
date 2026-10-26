@@ -37,7 +37,10 @@ export default function ManagerAuth({ children }) {
       if (error && active) { setError(error.message); setLoading(false); return }
       if (active) void apply(data.session)
     })
-    const { data } = backend.auth.onAuthStateChange((_event, next) => {
+    const { data } = backend.auth.onAuthStateChange((event, next) => {
+      if (active && event === 'SIGNED_OUT') {
+        setEmail(''); setPassword(''); setError(''); setBusy(false)
+      }
       // Keep database queries outside the auth callback's internal lock.
       setTimeout(() => { if (active) void apply(next) }, 0)
     })
