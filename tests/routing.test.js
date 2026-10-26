@@ -1,7 +1,34 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { previewRoute, fetchRoute, drawRoute, drawRoutes, focusRoute, routePadding } from '../src/services/routing.js'
+import { visibleReportRoutes, previewRoute, fetchRoute, drawRoute, drawRoutes, focusRoute, routePadding } from '../src/services/routing.js'
 const from = [120.9, 14.8], to = [120.92, 14.82]
+
+test('routes hide for clustered or filtered accidents and return for individual accidents', () => {
+  const routes = [{ reportId: 'A' }, { reportId: 'B' }]
+  let features = [{ properties: { cluster: true, point_count: 2 } }]
+  const map = { querySourceFeatures: () => features }
+  assert.deepEqual(visibleReportRoutes(map, routes, 'A'), [])
+  features = [{ properties: { id: 'A' } }, { properties: { id: 'A' } }]
+  assert.deepEqual(visibleReportRoutes(map, routes, 'A'), [routes[0]])
+  features = [{ properties: { id: 'A' } }, { properties: { id: 'B' } }]
+  assert.deepEqual(visibleReportRoutes(map, routes, 'A'), [routes[0]])
+  assert.deepEqual(visibleReportRoutes(map, routes, 'B'), [routes[1]])
+  assert.deepEqual(visibleReportRoutes(map, routes, null), [])
+  assert.deepEqual(visibleReportRoutes(map, routes, 'C'), [])
+})
+
+test('response station snapshots follow the same selected and unclustered accidents as routes', () => {
+  const stationA = { id: 'station-A' }, stationB = { id: 'station-B' }
+  const responses = [{ reportId: 'A', station: stationA }, { reportId: 'B', station: stationB }]
+  let features = [{ properties: { id: 'A' } }, { properties: { id: 'B' } }]
+  const map = { querySourceFeatures: () => features }
+  const stations = selection => visibleReportRoutes(map, responses, selection).map(entry => entry.station)
+  assert.deepEqual(stations('A'), [stationA])
+  assert.deepEqual(stations('B'), [stationB])
+  assert.deepEqual(stations(null), [])
+  features = [{ properties: { point_count: 2 } }]
+  assert.deepEqual(stations('B'), [])
+})
 
 test('route camera reserves visible space beside or above the station card', () => {
   const card = { offsetWidth: 320, offsetHeight: 290 }

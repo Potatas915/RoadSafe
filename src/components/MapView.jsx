@@ -24,7 +24,7 @@ import useMedicalStations from "../hooks/useMedicalStations.js";
 import useRadiusArea from "../hooks/useRadiusArea.js";
 
 import useResponderState from "../hooks/useResponderState.js";
-import { previewRoute, fetchRoute, focusRoute, animateRoutes } from "../services/routing.js";
+import { previewRoute, fetchRoute, focusRoute, animateRoutes, visibleReportRoutes } from "../services/routing.js";
 import DispatchDrag from "./DispatchDrag.jsx";
 import { nearbyStreetFeatures } from "../services/affectedStreets.js";
 import ResponderCard from "./ResponderCard.jsx";
@@ -353,8 +353,11 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const responders = useResponderState(selectedStation);
   const [routes, setRoutes] = useState({});
   const routeCache = useRef(new Map());
+  const [visibleRouteReportIds, setVisibleRouteReportIds] = useState([]);
   const activeRequests = useMemo(() => responders.activeRequests.filter(entry => entry.station.responderType === 'police'), [responders.activeRequests]);
-  const retainedStations = useMemo(() => activeRequests.map(({ station }) => station), [activeRequests]);
+  const retainedStations = useMemo(() => activeRequests
+    .filter(({ request }) => visibleRouteReportIds.includes(String(request.reportId)))
+    .map(({ station }) => station), [activeRequests, visibleRouteReportIds]);
   const stationRequest = selectedStation?.responderType === 'police' ? responders.get(selectedStation.id).request : null;
   const routeInfo = stationRequest ? routes[stationRequest.id]?.route ?? null : null;
   useEffect(() => {
@@ -363,7 +366,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     const next = {};
     for (const { station, request } of activeRequests) {
       const route = routeCache.current.get(request.id) || previewRoute([station.lng, station.lat], request.sceneCoordinates);
-      if (route) next[request.id] = { route, responderType: station.responderType };
+      if (route) next[request.id] = { route, responderType: station.responderType, reportId: request.reportId };
     }
     setRoutes(next);
     const activeIds = new Set(activeRequests.map(({ request }) => request.id));
@@ -373,14 +376,30 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
       fetchRoute([station.lng, station.lat], request.sceneCoordinates, { signal: controller.signal }).then((route) => {
         if (controller.signal.aborted || !route) return;
         routeCache.current.set(request.id, route);
-        setRoutes((previous) => ({ ...previous, [request.id]: { route, responderType: station.responderType } }));
+        setRoutes((previous) => ({ ...previous, [request.id]: { route, responderType: station.responderType, reportId: request.reportId } }));
       });
     }
     return () => controller.abort();
   }, [mapReady, activeRequests]);
   useEffect(() => {
-    if (mapReady && mapRef.current) return animateRoutes(mapRef.current, Object.values(routes));
-  }, [mapReady, routes]);
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+    let previous, cancel;
+    const update = () => {
+      const visible = visibleReportRoutes(map, Object.values(routes), selectedReportId);
+      const signature = visible.map(entry => entry.reportId).join('|');
+      if (signature === previous) return;
+      previous = signature;
+      setVisibleRouteReportIds(visible.map(entry => String(entry.reportId)));
+      cancel?.();
+      cancel = animateRoutes(map, visible);
+    };
+    const onSource = (event) => { if (event.sourceId === 'roadsafe-reports') update(); };
+    update();
+    map.on('sourcedata', onSource);
+    map.on('moveend', update);
+    return () => { cancel?.(); map.off('sourcedata', onSource); map.off('moveend', update); };
+  }, [mapReady, routes, selectedReportId]);
   useEffect(() => {
     if (!routeInfo) return;
     // Measure the card after React commits its active-route layout.

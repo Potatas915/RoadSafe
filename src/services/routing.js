@@ -32,6 +32,15 @@ export function drawRoute(map, route, responderType = 'police') {
   drawRoutes(map, route ? [{ route, responderType }] : [])
 }
 
+// The clustered source exposes individual accidents only once they separate.
+export function visibleReportRoutes(map, routes, selectedReportId) {
+  if (selectedReportId == null) return []
+  const ids = new Set(map.querySourceFeatures('roadsafe-reports')
+    .filter(feature => !feature.properties.point_count)
+    .map(feature => String(feature.properties.id)))
+  return routes.filter(entry => String(entry.reportId) === String(selectedReportId) && ids.has(String(entry.reportId)))
+}
+
 // Reveal along cumulative segment lengths, including two-point fallback routes.
 export function routePrefix(coordinates, progress) {
   if (progress >= 1) return coordinates
