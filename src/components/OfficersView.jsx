@@ -6,7 +6,6 @@ import { useCategoryLabel } from './CategoryContext.js'
 const closedStatuses = [REPORT_STATUS.CLOSED, REPORT_STATUS.REJECTED]
 // Most urgent work first when a person's cases are grouped by status.
 const STATUS_ORDER = [REPORT_STATUS.IN_PROGRESS, REPORT_STATUS.ASSIGNED, REPORT_STATUS.VERIFIED, REPORT_STATUS.UNDER_REVIEW, REPORT_STATUS.INFORMATION_REQUIRED, REPORT_STATUS.SUBMITTED]
-const shortId = (id) => (id.length > 16 ? id.slice(0, 8) : id)
 const initials = (name) => name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 const officerSummary = (officer, count) => [count ? `${count} active case${count === 1 ? '' : 's'}` : 'No active cases', officer.unit?.trim() && officer.unit.trim().toLowerCase() !== 'unassigned' ? `Unit: ${officer.unit.trim()}` : null].filter(Boolean).join(' · ')
 const bySeverityThenAge = (a, b) => (b.severity.score ?? -1) - (a.severity.score ?? -1) || new Date(a.report.submittedAt) - new Date(b.report.submittedAt)
@@ -54,7 +53,7 @@ function CaseRow({ report, severity, label, onOpen, showStatus = false }) {
         <span className="min-w-0 flex-1 py-2.5">
           <span className="flex items-center gap-2"><span className="truncate text-xs font-semibold text-strong">{label(report.categoryId)}</span><span className="shrink-0 rounded px-1.5 py-px text-[9px] font-semibold" style={{ backgroundColor: `${severity.color}26`, color: severity.color }}>{severity.label}</span></span>
           <span className="block truncate text-[11px] text-slate-400">{report.location?.address || 'Pinned location'}</span>
-          <span className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-500"><span className="font-mono" title={report.id}>#{shortId(report.id)}</span><span aria-hidden="true">·</span><span>{formatDateTime(report.occurredAt)}</span>{showStatus && <><span aria-hidden="true">·</span><span>{report.status}</span></>}</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500"><span className="min-w-0 font-mono break-all" title={report.id}>#{report.id}</span><span aria-hidden="true">·</span><span>{formatDateTime(report.occurredAt)}</span>{showStatus && <><span aria-hidden="true">·</span><span>{report.status}</span></>}</span>
         </span>
         <i className="fa-solid fa-chevron-right self-center pr-3 text-[10px] text-slate-500 transition group-hover:translate-x-0.5" aria-hidden="true" />
       </button>

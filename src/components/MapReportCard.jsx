@@ -1,4 +1,5 @@
 import IncidentPhotoCarousel from './IncidentPhotoCarousel.js'
+import { useState } from 'react'
 import { useCategories } from './CategoryContext.js'
 import { formatDateTime } from '../models/report.js'
 import { caseSeverity, reportedVehicles } from '../models/caseSeverity.js'
@@ -23,6 +24,11 @@ export function MapReportPreview({ report, summary = false }) {
 
 export default function MapReportCard({ report, onClose, onZoom, onOpenReport }) {
   const ACCIDENT_CATEGORIES = useCategories()
+  const [copyMessage, setCopyMessage] = useState('')
+  async function copyReportId() {
+    try { await navigator.clipboard.writeText(report.id); setCopyMessage('Full report ID copied.') }
+    catch { setCopyMessage('Could not copy. Full report ID: ' + report.id) }
+  }
 
   if (!report) return null
   const category = ACCIDENT_CATEGORIES.find((item) => item.id === report.categoryId)
@@ -34,7 +40,11 @@ export default function MapReportCard({ report, onClose, onZoom, onOpenReport })
       <span className="w-9 h-9 shrink-0 rounded-xl border flex items-center justify-center" style={{ color: severity.color, backgroundColor: `${severity.color}15`, borderColor: `${severity.color}40` }}><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" fillRule="evenodd"><path d={ACCIDENT_ICON_PATHS[report.categoryId] ?? ACCIDENT_ICON_PATHS.other} /></svg></span>
       <div className="min-w-0 flex-1">
         <h3 className="font-bold text-sm text-strong">{category.label}</h3>
-        <p className="font-mono text-[10px] text-orange-400 break-all">{report.id}</p>
+        <div className="mt-1 flex items-center gap-2">
+          <span aria-label="Report reference" title={report.id} className="font-mono text-xs text-orange-400">#{report.id.length > 16 ? report.id.slice(0, 8) : report.id}</span>
+          <button type="button" onClick={copyReportId} aria-label="Copy full report ID" title="Copy full report ID" className="shrink-0 rounded p-1 text-slate-400 hover:text-strong focus-visible:outline focus-visible:outline-orange-400"><i aria-hidden="true" className="fa-regular fa-copy" /></button>
+        </div>
+        {copyMessage && <p role="status" className="mt-1 text-[11px] text-slate-400 break-all">{copyMessage}</p>}
         <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/10 text-orange-400">{report.status}</span>
       </div>
       <button type="button" onClick={onClose} aria-label="Close report card" className="text-slate-400 hover:text-strong"><i className="fa-solid fa-xmark text-lg" /></button>

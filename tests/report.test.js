@@ -24,6 +24,39 @@ function component(relative) {
 const ReportModal = component('../src/components/ReportModal.jsx')
 const ReportsView = component('../src/components/ReportsView.jsx')
 
+test('report references display the full UUID in the table, details, and officer dispatch', () => {
+  const id = 'c12e363d-c13c-43b3-870c-399b7ecadf1a'
+  const report = { ...first, id, status: 'Assigned', assignedOfficerId: 'officer' }
+  const users = [{ id: 'officer', name: 'Officer', role: ROLES.OFFICER, responderType: 'police', unit: 'Unassigned', enabled: true }]
+  for (const View of [ReportsView, component('../src/components/OfficersView.jsx'), ReportModal]) {
+    const html = renderToStaticMarkup(React.createElement(View, { report, reports: [report], users }))
+    assert.ok(html.includes(`>${id}<`) || html.includes(`>#${id}<`), 'full visible reference, not just a tooltip or aria-label')
+  }
+})
+
+test('map card uses a compact reference while preserving the full ID for copying and details', async () => {
+  const id = 'c12e363d-c13c-43b3-870c-399b7ecadf1a'
+  const Card = component('../src/components/MapReportCard.jsx')
+  const html = renderToStaticMarkup(React.createElement(Card, { report: { ...first, id }, onOpenReport() {} }))
+  assert.ok(html.includes('>#c12e363d</span>'))
+  assert.ok(!html.includes(`>${id}<`))
+  assert.ok(html.includes(`title="${id}"`))
+  assert.match(html, /aria-label="Copy full report ID"/)
+  assert.match(html, /Full details/)
+  const source = readFileSync(new URL('../src/components/MapReportCard.jsx', import.meta.url), 'utf8')
+  const body = source.match(/async function copyReportId\(\) \{([\s\S]*?)\n  \}/)[1]
+  for (const denied of [false, true]) {
+    let copied, message
+    const copy = vm.runInNewContext('(async () => {' + body + '})', {
+      report: { id }, setCopyMessage: value => { message = value },
+      navigator: { clipboard: { writeText: async value => { if (denied) throw Error('Denied'); copied = value } } },
+    })
+    await copy()
+    if (denied) assert.ok(message.includes(id))
+    else { assert.equal(copied, id); assert.match(message, /copied/i) }
+  }
+})
+
 test('report details show reporter clarification below the original description', () => {
   const events = [
     { id: 'request', type: 'review_updated', createdAt: '2026-10-27T01:00:00Z', message: 'Please clarify the vehicle colour.' },

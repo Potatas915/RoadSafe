@@ -134,7 +134,7 @@ export default function ResponderCard({
             <span className={label}>Scene</span>
             {hasScene ? (
               <>
-                <p className="font-mono text-orange-400 font-bold text-[11px]">
+                <p className="font-mono text-orange-400 font-bold text-[11px] break-all">
                   {activeScene.reportId}
                 </p>
                 <p className="text-slate-400 text-[11px]">{activeScene.label}</p>
@@ -157,7 +157,7 @@ export default function ResponderCard({
             </details>
           </> : request ? <div role="status" className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 space-y-2 break-words">
             <span className="text-orange-400 block text-[10px] uppercase font-semibold">Personnel request</span>
-            <p className="font-mono font-bold text-orange-400">{request.id}</p>
+            <p className="font-mono font-bold text-orange-400 break-all">{request.id}</p>
             <p>{request.personnel} {station.responderType === 'police' ? 'police' : 'medical'} personnel</p>
             <p className="text-slate-400 text-[11px]">{new Date(request.requestedAt).toLocaleString()}</p>
             {request.note && <p className="text-slate-300 whitespace-pre-wrap">{request.note}</p>}

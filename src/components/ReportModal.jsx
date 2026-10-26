@@ -76,8 +76,8 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
     <Container ref={dialog} aria-labelledby="report-title" onCancel={(event) => { event.preventDefault(); onClose() }} className={embedded ? "dx-card text-slate-100 w-full min-w-0 overflow-y-auto xl:max-h-[75vh]" : "m-auto bg-darkCard text-slate-100 border border-darkBorder rounded-2xl w-full max-w-2xl max-h-[90vh] p-0 backdrop:bg-slate-950/80"}>
       <form onSubmit={submit} className="text-xs">
         <header className="p-5 border-b border-darkBorder flex justify-between gap-3">
-          <h2 id="report-title" className="font-bold text-sm">Report Details: <span className="text-orange-400">{report.id}</span></h2>
-          <button type="button" onClick={onClose} aria-label="Close report">Close</button>
+          <h2 id="report-title" className="min-w-0 font-bold text-sm">Report Details: <span className="font-mono text-orange-400 break-all select-text">{report.id}</span></h2>
+          <button type="button" onClick={onClose} aria-label="Close report" className="shrink-0">Close</button>
         </header>
         <div className="p-6 space-y-5">
           <p className={isOfficiallyVerified(report) ? 'text-emerald-400' : 'text-amber-300'}>{isOfficiallyVerified(report) ? 'Officially verified accident record' : 'Public submission — not officially verified'}</p>

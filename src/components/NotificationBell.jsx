@@ -7,7 +7,7 @@ export function NotificationList({ notifications, onRead, onOpenReport }) {
     {notifications.map((item) => <li key={item.id} className={`p-3 space-y-2 ${item.read ? '' : 'bg-orange-500/[.08]'}`}>
       <button type="button" className="block w-full text-left space-y-1 rounded focus-visible:outline focus-visible:outline-orange-500" onClick={() => { onRead([item.id]); onOpenReport(item.reportId) }}>
         <span className="block text-xs font-semibold text-strong">{!item.read && <span className="text-orange-400">Unread · </span>}{item.title}</span>
-        <span className="block text-xs text-slate-300 break-words">{item.message}</span>
+        <span className="block text-xs text-slate-300 [overflow-wrap:anywhere]">{item.message}</span>
         <time className="block text-[11px] text-slate-400" dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time>
       </button>
       {!item.read && <button type="button" onClick={() => onRead([item.id])} className="text-xs text-orange-400 hover:underline">Mark as read</button>}
