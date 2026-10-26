@@ -314,7 +314,7 @@ function filterReports(reports, selectedTypes, includePending, selectedStatus) {
   };
 }
 
-export default function MapView({ searchLocation, reportRecords, users, onOpenReport, enforcerClient, onAssigned }) {
+export default function MapView({ searchLocation, reportRecords, users, onOpenReport, enforcerClient, enforcerRosterClient = enforcerClient, onAssigned }) {
   const REPORT_TYPES = useCategories();
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -1217,7 +1217,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             <ResponderCard
               key={selectedStation.id}
               station={selectedStation}
-              enforcerPanel={enforcerClient && selectedStation.responderType === 'police' ? <StationEnforcers key={selectedStation.id} client={enforcerClient} station={selectedStation} report={selectedRecord} onAssigned={onAssigned} /> : null}
+              enforcerPanel={enforcerRosterClient && selectedStation.responderType === 'police' ? <StationEnforcers key={selectedStation.id} client={enforcerRosterClient} station={selectedStation} report={enforcerClient ? selectedRecord : null} onAssigned={onAssigned} /> : null}
               selectedPersonnel={personnelByStation[selectedStation.id] ?? 1}
               onPersonnelChange={(count) => setPersonnelByStation(previous => ({ ...previous, [selectedStation.id]: count }))}
               routeInfo={routeInfo}

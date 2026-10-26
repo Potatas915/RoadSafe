@@ -67,5 +67,13 @@ test('actual station panel escapes names, excludes offline/busy officers and blo
   assert.doesNotMatch(live, /disabled=""[^>]*>Assign to selected accident/)
   const sample = render(null)
   assert.match(sample, /disabled=""[^>]*>Assign to selected accident/)
-  assert.match(sample, /Existing reports/)
+  assert.match(sample, /Shared reports/)
+})
+
+test('map keeps the signed-in station roster separate from demo write access', () => {
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8')
+  const map = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
+  assert.ok(app.includes('enforcerRosterClient={live ? backend : null}'), 'roster stays available while previewing')
+  assert.ok(map.includes('client={enforcerRosterClient}'), 'station panel loads the roster')
+  assert.ok(map.includes('report={enforcerClient ? selectedRecord : null}'), 'demo records cannot be assigned')
 })

@@ -54,7 +54,7 @@ export default function StationEnforcers({ client, station, report, onAssigned }
     {!loading && !error && !rows.length && <p>No enforcers have selected this station.</p>}
     <ul className="space-y-2">{rows.map(row => <li key={row.id} className="flex justify-between gap-2"><span>{row.name} <span className="text-slate-400">· {row.unit}</span></span><span>{!row.online ? 'Offline' : !row.onDuty ? 'Off duty' : row.busy ? 'Responding' : 'Available'}</span></li>)}</ul>
     <label className="block">Assign enforcer<select aria-label="Assign station enforcer" value={selected} onChange={e => setSelected(e.target.value)} disabled={busy || loading || Boolean(error)} className="block w-full mt-1 bg-darkBg border border-darkBorder rounded-lg p-2"><option value="">Choose an available enforcer</option>{rows.filter(availableEnforcer).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
-    {!eligible && <p className="text-amber-300">Select an unassigned, verified report from Existing reports to assign personnel.</p>}
+    {!eligible && <p className="text-amber-300">Choose Shared reports in Report source, then select an unassigned, verified accident to assign an enforcer. Demo accidents cannot receive shared assignments.</p>}
     <button type="button" disabled={busy || loading || Boolean(error) || !eligible || !rows.some(row => row.id === selected && availableEnforcer(row))} onClick={assign} className="w-full bg-blue-600 rounded-xl p-2 disabled:opacity-50">{busy ? 'Assigning…' : 'Assign to selected accident'}</button>
   </section>
 }
