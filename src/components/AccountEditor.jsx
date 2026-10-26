@@ -50,10 +50,10 @@ export default function AccountEditor({ account, currentUserId, onSave, onCancel
   }, [error])
   const stationOptions = stations.some(station => station.id === account.station?.id) || !account.station ? stations : [account.station, ...stations]
   const blocked = saving || stale || !reason.trim() || !draft.name.trim() || (granting && (!verified || !draft.stationId || !account.enabled || !draft.enabled)) || (policeOfficer && !!account.station?.id && !draft.stationId)
-  const approvalBlocked = saving || stale || !account.enabled || !draft.enabled || !verified || !draft.stationId || !reason.trim() || !draft.name.trim()
+  const approvalBlocked = saving || stale || !account.enabled || !draft.enabled || !verified || !draft.stationId || !draft.name.trim()
   function submit(approve = false) {
     if (approve ? approvalBlocked : blocked) return
-    void onSave({ ...draft, ...(approve ? { role: 'Officer', responderType: 'police', enabled: true, verify: true } : { verify: granting && verified }) }, reason)
+    void onSave({ ...draft, ...(approve ? { role: 'Officer', responderType: 'police', enabled: true, verify: true } : { verify: granting && verified }) }, approve ? 'Enforcer identity and credentials verified by administrator.' : reason)
   }
   return <dialog ref={dialog} aria-labelledby="account-editor-title" aria-describedby="account-editor-description" onCancel={event => { event.preventDefault(); close() }} className="m-auto w-[calc(100%_-_2rem)] max-w-2xl max-h-[90dvh] p-0 rounded-xl border border-darkBorder bg-darkBg text-slate-100 backdrop:bg-black/70 shadow-xl">
     <form onSubmit={event => { event.preventDefault(); submit() }} className="flex max-h-[90dvh] flex-col">
@@ -73,7 +73,7 @@ export default function AccountEditor({ account, currentUserId, onSave, onCancel
           {(applicant || granting) && <label className="flex items-start gap-2"><input aria-label="Identity and credentials verified" type="checkbox" checked={verified} onChange={event => setVerified(event.target.checked)} /><span>I have verified this person's identity and enforcer credentials.</span></label>}
           {granting && !account.enabled && <p className="text-sm text-orange-300">Save reactivation separately before granting Officer access.</p>}
           {self && <p className="text-sm text-slate-400">You can edit your profile; your own Admin role and access cannot be removed here.</p>}
-          <label className="block">Change reason<textarea aria-label="Account change reason" required maxLength={5000} className={field} value={reason} onChange={event => setReason(event.target.value)} /></label>
+          {applicant ? <details><summary className="cursor-pointer font-semibold">Reason for other account changes</summary><p className="text-sm text-slate-400 mt-2">Verification does not need a reason. Provide one only when saving other account changes.</p><label className="block mt-2">Change reason<textarea aria-label="Account change reason" maxLength={5000} className={field} value={reason} onChange={event => setReason(event.target.value)} /></label></details> : <label className="block">Change reason<textarea aria-label="Account change reason" required maxLength={5000} className={field} value={reason} onChange={event => setReason(event.target.value)} /></label>}
         </fieldset>
         {discard && <div ref={discardPanel} role="alert" className="space-y-3"><p>Discard unsaved account changes?</p><div className="flex gap-3"><button type="button" disabled={saving} onClick={onCancel} className="dx-btn dx-btn-inline">Discard changes</button><button ref={keepEditing} type="button" onClick={() => { setDiscard(false); previousField.current?.focus() }} className="dx-btn dx-btn-inline">Keep editing</button></div></div>}
       </div>

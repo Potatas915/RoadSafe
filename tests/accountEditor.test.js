@@ -31,15 +31,16 @@ test('public account editor is a dialog with basic profile fields and collapsed 
   assert.doesNotMatch(html, /Station affiliation/)
 })
 test('approval cannot submit without identity confirmation and a station', () => {
-  let submitted = 0
-  const render = harness({ account: { ...account, requestedAccountType: 'Officer' }, onSave: () => submitted++ })
-  let tree = render()
-  find(tree, n => n.props?.['aria-label'] === 'Account change reason').props.onChange({ target: { value: 'Verified documents' } })
-  tree = render()
-  const approve = find(tree, n => n.type === 'button' && n.props.children === 'Verify and approve enforcer')
-  assert.equal(approve.props.disabled, true)
-  approve.props.onClick()
-  assert.equal(submitted, 0)
+  for (const [station, verified] of [[false, false], [true, false], [false, true]]) {
+    let submitted = 0
+    const render = harness({ account: { ...account, requestedAccountType: 'Officer' }, onSave: () => submitted++ })
+    if (station) find(render(), n => n.props?.['aria-label'] === 'Account station').props.onChange({ target: { value: 'station-one' } })
+    if (verified) find(render(), n => n.props?.['aria-label'] === 'Identity and credentials verified').props.onChange({ target: { checked: true } })
+    const approve = find(render(), n => n.type === 'button' && n.props.children === 'Verify and approve enforcer')
+    assert.equal(approve.props.disabled, true)
+    approve.props.onClick()
+    assert.equal(submitted, 0)
+  }
 })
 test('dirty cancellation retains draft until explicit discard', () => {
   let closed = 0
@@ -58,10 +59,13 @@ test('stale error stays in modal and blocks saves until reload', () => {
   assert.equal(find(tree, n => n.type === 'button' && n.props.children === 'Save account changes').props.disabled, true)
 })
 
-test('verified applicant approval sends explicit Officer police access and station without unit', () => {
+test('verified applicant approval needs no typed reason and sends Officer access with an automatic audit note', () => {
   let saved
   const render = harness({ account: { ...account, requestedAccountType: 'Officer' }, onSave: (patch, reason) => { saved = { patch, reason } } })
-  for (const [label, target] of [['Account change reason', { value: 'Identity and credentials checked' }], ['Account station', { value: 'station-one' }], ['Identity and credentials verified', { checked: true }]]) find(render(), n => n.props?.['aria-label'] === label).props.onChange({ target })
+  for (const [label, target] of [['Account station', { value: 'station-one' }], ['Identity and credentials verified', { checked: true }]]) find(render(), n => n.props?.['aria-label'] === label).props.onChange({ target })
+  assert.equal(find(render(), n => n.type === 'button' && n.props.children === 'Verify and approve enforcer').props.disabled, false)
+  assert.equal(find(render(), n => n.props?.['aria-label'] === 'Account change reason').props.required, undefined)
+  assert.equal(find(render(), n => n.type === 'button' && n.props.children === 'Save account changes').props.disabled, true)
   find(render(), n => n.type === 'button' && n.props.children === 'Verify and approve enforcer').props.onClick()
   assert.equal(saved.patch.role, 'Officer')
   assert.equal(saved.patch.responderType, 'police')
@@ -69,7 +73,7 @@ test('verified applicant approval sends explicit Officer police access and stati
   assert.equal(saved.patch.enabled, true)
   assert.equal(saved.patch.verify, true)
   assert.equal('unit' in saved.patch, false)
-  assert.equal(saved.reason, 'Identity and credentials checked')
+  assert.equal(saved.reason, 'Enforcer identity and credentials verified by administrator.')
 })
 test('suspended applicant must persist reactivation before approval', () => {
   let submitted = 0
