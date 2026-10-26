@@ -3,7 +3,7 @@ import { useCategoryLabel, useCategories } from './CategoryContext.js'
 import { canCorrectReport, correctionDraft, correctionValues, VEHICLE_TYPES } from '../models/reportCorrections.js'
 import { officerStatuses } from '../models/staffAccess.js'
 import { useEffect, useRef, useState } from 'react'
-import { REPORT_STATUSES, REPORT_STATUS, ROLES, validCoordinates, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
+import { REPORT_STATUS, ROLES, validCoordinates, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
 import { DUPLICATE_REVIEW_STATUSES, duplicateOriginals } from '../models/reportDuplicates.js'
 
 export default function ReportModal({ report, users, onSave, onClose, onViewOnMap, live = false, reports = [], onDuplicate, onOpenOriginal, onCorrect, actorRole = ROLES.ADMIN, viewerId, embedded = false }) {
@@ -13,8 +13,15 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
   const [correctionReason, setCorrectionReason] = useState('')
 
   const officer = actorRole === ROLES.OFFICER
-  const statusChoices = officer ? officerStatuses(report, viewerId) : report.isDuplicate ? [REPORT_STATUS.REJECTED] : REPORT_STATUSES
-  const [status, setStatus] = useState(officer ? statusChoices[0] ?? report.status : report.status)
+  const actionLabels = { 'Under Review': report.status === 'Submitted' ? 'Start review' : 'Resume review', 'Additional Information Required': 'Request information', Verified: 'Verify report', Rejected: 'Reject report', 'In Progress': 'Start responding', 'Resolved / Closed': 'Complete case' }
+  const statusChoices = officer ? officerStatuses(report, viewerId).filter(value => value !== report.status) : report.isDuplicate ? [] : ({
+    Submitted: ['Under Review'],
+    'Under Review': ['Additional Information Required', 'Verified', 'Rejected'],
+    'Additional Information Required': ['Under Review', 'Verified', 'Rejected'],
+  }[report.status] ?? [])
+  const [status, setStatus] = useState(report.status)
+  const [reviewReason, setReviewReason] = useState('')
+  const returningToReview = status === REPORT_STATUS.UNDER_REVIEW && ['Verified', 'Assigned', 'In Progress'].includes(report.status)
   const assignedOfficerId = report.assignedOfficerId ?? ''
   const assignedEnforcer = users.find(user => user.id === assignedOfficerId)
   const [officialRemarks, setRemarks] = useState(report.officialRemarks)
@@ -33,8 +40,11 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
   async function submit(event) {
     event.preventDefault()
     if (saving) return
+    if (returningToReview && !reviewReason.trim()) { setError('Provide a reason for returning this case to review.'); return }
+    if (status === REPORT_STATUS.REJECTED && !rejectionReason.trim()) { setError('Provide a rejection reason.'); return }
     setSaving(true); setError('')
-    try { await onSave(report.id, { status, assignedOfficerId: assignedOfficerId || null, officialRemarks, rejectionReason: rejectionReason.trim() || null }) }
+    const remarks = returningToReview ? `${officialRemarks.trim()}\nReturn to review: ${reviewReason.trim()}`.trim() : officialRemarks
+    try { await onSave(report.id, { status, assignedOfficerId: returningToReview ? null : assignedOfficerId || null, officialRemarks: remarks, rejectionReason: rejectionReason.trim() || null }) }
     catch (failure) { setError(failure.message) }
     finally { setSaving(false) }
   }
@@ -107,7 +117,14 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
             </details> : <p className="text-slate-400">Return active cases to Under Review before correcting facts. Closed, rejected and duplicate reports are locked.</p>}
           </section>}
           <div className="space-y-3 border-t border-darkBorder pt-4">
-            <label className="block">{officer && statusChoices[0] === 'Verified' ? 'Verification decision' : 'Report status'}<select aria-label="Report status" className={control} value={status} onChange={(e) => setStatus(e.target.value)}>{statusChoices.map((value) => <option key={value}>{value}</option>)}</select></label>
+            <section aria-label="Report workflow" className="space-y-2">
+              {officer && statusChoices.includes(REPORT_STATUS.VERIFIED) && <p className="text-slate-400">Verification decision</p>}
+              <p className="text-slate-400">Report status: <strong className="text-strong">{report.status}</strong></p>
+              <div className="flex flex-wrap gap-2">{statusChoices.map(value => <button key={value} type="button" disabled={saving} aria-pressed={status === value} onClick={() => { setStatus(value); setError('') }} className="rounded-lg border border-darkBorder px-3 py-2 text-orange-400 hover:bg-orange-400/10 aria-pressed:bg-orange-400/10 disabled:opacity-50">{actionLabels[value]}</button>)}</div>
+              {status !== report.status && <div role="status" className="rounded-lg border border-orange-400/30 p-3 space-y-2"><p>Pending action: {returningToReview ? 'Return to review' : actionLabels[status]}. Confirm below to save.</p><button type="button" disabled={saving} className="underline" onClick={() => { setStatus(report.status); setError('') }}>Cancel action</button></div>}
+              {!officer && !report.isDuplicate && ['Verified', 'Assigned', 'In Progress'].includes(report.status) && <details className="rounded-lg border border-darkBorder p-3 space-y-2"><summary className="cursor-pointer text-slate-400">Administrative correction</summary><p className="text-amber-300">Returning to review clears verification and ends any enforcer assignment. Use only when the report needs another review.</p><button type="button" disabled={saving} onClick={() => { setStatus(REPORT_STATUS.UNDER_REVIEW); setError('') }} className="rounded-lg border border-darkBorder px-3 py-2">Return to review</button></details>}
+              {returningToReview && <label className="block">Reason for returning to review<textarea aria-label="Return to review reason" required maxLength={5000} className={control} value={reviewReason} disabled={saving} onChange={e => setReviewReason(e.target.value)} /></label>}
+            </section>
             {!officer && <section aria-label="Assigned enforcer" className="rounded-xl border border-darkBorder bg-darkBg p-3 space-y-2">
               <h3 className="text-slate-400">Assigned enforcer</h3>
               <p className="font-semibold text-strong">{assignedOfficerId ? assignedEnforcer ? `${assignedEnforcer.name}${assignedEnforcer.unit ? ` · ${assignedEnforcer.unit}` : ''}` : 'Assigned enforcer details unavailable' : 'No enforcer assigned'}</p>
@@ -115,7 +132,7 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
               {onViewOnMap && validCoordinates(coords) && <button type="button" disabled={saving} onClick={() => onViewOnMap(report)} className="rounded-lg border border-orange-400/30 px-3 py-2 text-orange-400 hover:bg-orange-400/10 disabled:opacity-50">{assignedOfficerId ? 'View assignment on map' : live && report.status === 'Verified' && !report.isDuplicate ? 'Assign on map' : 'View on map'}</button>}
             </section>}
             <label className="block">Official remarks<textarea className={control} value={officialRemarks} onChange={(e) => setRemarks(e.target.value)} /></label>
-            {status === REPORT_STATUS.REJECTED && <label className="block">Rejection reason (required)<textarea required className={control} value={rejectionReason} onChange={(e) => setReason(e.target.value)} /></label>}
+            {status === REPORT_STATUS.REJECTED && <label className="block">Rejection reason (required)<textarea aria-label="Rejection reason" required className={control} value={rejectionReason} onChange={(e) => setReason(e.target.value)} /></label>}
           </div>
           {onDuplicate && !report.isDuplicate && DUPLICATE_REVIEW_STATUSES.includes(report.status) && <section className="space-y-3 border-t border-darkBorder pt-4">
             <h3 className="font-semibold text-strong">Duplicate review</h3>
@@ -130,7 +147,7 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
           <ReportHistory events={report.events} redacted={officer} />
           {error && <p role="alert" className="text-red-300">{error}</p>}
         </div>
-        <footer className="p-4 border-t border-darkBorder flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 rounded-xl">Cancel</button><button type="submit" disabled={saving || officer && !statusChoices.length} className="px-4 py-2 bg-orange-600 rounded-xl disabled:opacity-50">{saving ? "Saving…" : officer && statusChoices[0] === 'Verified' ? 'Verify report' : live ? "Save changes" : "Save session changes"}</button></footer>
+        <footer className="p-4 border-t border-darkBorder flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 rounded-xl">Cancel</button><button type="submit" disabled={saving || officer && !officerStatuses(report, viewerId).includes(status)} className="px-4 py-2 bg-orange-600 rounded-xl disabled:opacity-50">{saving ? 'Saving…' : status !== report.status ? live ? 'Confirm action' : 'Confirm demo action' : officer && !officerStatuses(report, viewerId).includes(status) ? 'Choose an action' : live ? 'Save remarks' : 'Save session remarks'}</button></footer>
       </form>
     </Container>
   )

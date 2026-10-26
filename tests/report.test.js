@@ -85,14 +85,15 @@ test('updates preserve identity and propagate into map/table/summary with verifi
   assert.equal(rejected.verification.verifiedAt, null)
 })
 
-test('details render the chosen record, real evidence, unknown injuries, and all eight statuses', () => {
+test('details render the chosen record, real evidence, unknown injuries, and its current status', () => {
   const users = reportsResponse.included.users
   const render = (report) => renderToStaticMarkup(React.createElement(ReportModal, {report, users, onSave(){}, onClose(){}}))
   const a = render(first), b = render(second)
   assert.ok(a.includes(first.id) && a.includes(first.location.address))
   assert.ok(b.includes(second.id) && b.includes(second.location.address) && !b.includes(first.location.address))
   assert.ok(a.includes('Public submission') && b.includes('Officially verified accident record'))
-  for (const status of REPORT_STATUSES) assert.ok(a.includes(status))
+  assert.ok(a.includes(first.status) && b.includes(second.status))
+  assert.ok(!a.includes('aria-label="Report status"'))
   assert.ok(a.includes(first.evidence[0].url))
   assert.ok(render({ ...first, evidence: [] }).includes('No evidence attached.'))
   const unknown = { ...first, injuries:{status:'unknown', injuredCount:null, fatalityCount:null}, evidence:[{id:'photo-1', fileName:'scene.jpg', mimeType:'image/jpeg', url:'/evidence/scene.jpg'}] }
@@ -163,7 +164,7 @@ test('management embeds the existing review form without a modal dialog', () => 
   const html = renderToStaticMarkup(React.createElement(ReportModal, { report: first, users: reportsResponse.included.users, embedded: true }))
   assert.ok(!html.includes('<dialog'))
   assert.ok(html.includes('Report Details:'))
-  assert.ok(html.includes('Save session changes'))
+  assert.ok(html.includes('Save session remarks'))
   const table = renderToStaticMarkup(React.createElement(ReportsView, { reports: reportsResponse.data, users: reportsResponse.included.users, detailPanel: React.createElement('section', null, 'Selected workspace') }))
   assert.ok(table.includes('Awaiting review'))
   assert.ok(table.includes('Sort reports'))
@@ -211,4 +212,17 @@ test('report assignment is read-only and directs verified cases to the map', () 
   assert.match(assigned, /BL-TM-04/)
   assert.match(assigned, /View assignment on map/)
   assert.ok(!assigned.includes('aria-label="Assign officer"'))
+})
+
+test('admin workflow offers review decisions rather than a status dropdown', () => {
+  const render = (status, extra = {}) => renderToStaticMarkup(React.createElement(ReportModal, { report: { ...first, status, assignedOfficerId: null, ...extra }, users: reportsResponse.included.users, embedded: true }))
+  const submitted = render('Submitted')
+  assert.ok(!submitted.includes('aria-label="Report status"'))
+  assert.match(submitted, />Start review</)
+  const review = render('Under Review')
+  for (const label of ['Request information', 'Verify report', 'Reject report']) assert.ok(review.includes('>' + label + '<'), label)
+  for (const status of ['Assigned', 'In Progress', 'Resolved / Closed']) assert.ok(!review.includes('value="' + status + '"'))
+  assert.match(render('Additional Information Required'), />Resume review</)
+  for (const status of ['Verified', 'Assigned', 'In Progress']) assert.match(render(status), />Return to review</)
+  for (const status of ['Resolved / Closed', 'Rejected']) assert.ok(!render(status).includes('>Return to review<'))
 })
