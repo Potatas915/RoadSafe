@@ -7,7 +7,7 @@ import vm from 'node:vm'
 import { transformSync } from 'esbuild'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { parseAccounts, loadAccounts, saveAccount } from '../src/backend/accounts.js'
+import { parseAccounts, loadAccounts, saveAccount, loadAccountStations } from '../src/backend/accounts.js'
 import { canUseManager, officerCases, officerStatuses } from '../src/models/staffAccess.js'
 import { reportsResponse } from '../src/data/reports.js'
 import { parseReportsResponse } from '../src/models/report.js'
@@ -23,18 +23,22 @@ test('account groups separate public users, enforcers and administrators includi
     { ...account, id: 'admin', name: 'Administrator', role: 'Admin', requestedAccountType: 'Officer' },
   ]
   const html = renderToStaticMarkup(React.createElement(AccountGroups, { accounts }))
-  const users = html.match(/<section aria-label="Users accounts"[\s\S]*?<\/section>/)[0]
-  const enforcers = html.match(/<section aria-label="Enforcers accounts"[\s\S]*?<\/section>/)[0]
-  const admins = html.match(/<section aria-label="Administrators accounts"[\s\S]*?<\/section>/)[0]
+  const users = html.match(/<section[^>]*aria-label="Users accounts"[\s\S]*?<\/section>/)[0]
+  const enforcers = html.match(/<section[^>]*aria-label="Enforcers accounts"[\s\S]*?<\/section>/)[0]
+  const admins = html.match(/<section[^>]*aria-label="Administrators accounts"[\s\S]*?<\/section>/)[0]
   assert.match(users, /Public user/)
   assert.doesNotMatch(users, /Approved enforcer|Pending enforcer|Administrator/)
   assert.match(enforcers, /Approved enforcer/)
   assert.match(enforcers, /Pending enforcer/)
-  assert.match(enforcers, /awaiting Admin verification/)
+  assert.match(enforcers, /Awaiting verification/)
   assert.match(enforcers, /Suspended/)
-  assert.doesNotMatch(enforcers, /Public user|Administrator/)
+  assert.doesNotMatch(enforcers, /Administrator|· public</)
   assert.match(admins, /Administrator/)
-  assert.equal((html.match(/Edit account/g) ?? []).length, 4)
+  assert.doesNotMatch(users, /Station affiliation/)
+  assert.doesNotMatch(admins, /Station affiliation/)
+  assert.match(enforcers, /Station affiliation/)
+  assert.equal((html.match(/Edit account/g) ?? []).length, 3)
+  assert.match(html, /Review application/)
   const empty = renderToStaticMarkup(React.createElement(AccountGroups, { accounts: [] }))
   assert.match(empty, /No users on this page/)
   assert.match(empty, /No enforcers on this page/)
@@ -43,13 +47,13 @@ test('account groups separate public users, enforcers and administrators includi
 test('Admin sees pending enforcer applications and verification instructions', () => {
   const { AccountsTable, AccountEditor } = component('../src/components/AccountsView.jsx', name => name === '../backend/accounts.js' ? { loadAccounts, saveAccount } : undefined)
   const applicant = { ...account, role: 'Public', requestedAccountType: 'Officer' }
-  assert.match(renderToStaticMarkup(React.createElement(AccountsTable, { accounts: [applicant] })), /awaiting Admin verification/)
+  assert.match(renderToStaticMarkup(React.createElement(AccountsTable, { accounts: [applicant] })), /Awaiting verification/)
   assert.match(renderToStaticMarkup(React.createElement(AccountEditor, { account: applicant })), /Verify their identity and credentials/)
 })
 function component(path, extraRequire, globals = {}) {
   const url = new URL(path, import.meta.url), module = { exports: {} }, require = createRequire(fileURLToPath(url))
   vm.runInNewContext(transformSync(readFileSync(url, 'utf8'), { loader: 'jsx', jsx: 'automatic', format: 'cjs' }).code,
-    { module, exports: module.exports, require: name => extraRequire?.(name) ?? require(name), ...globals })
+    { module, exports: module.exports, require: name => extraRequire?.(name) ?? (name === './AccountEditor.jsx' ? { default: component('../src/components/AccountEditor.jsx').default, __esModule: true } : require(name)), ...globals })
   return module.exports
 }
 test('only enabled Admin and Officer accounts pass the staff gate', () => {
@@ -70,8 +74,8 @@ test('account RPCs send bounded pagination, expected version and reason; denied/
   } }, ' Unit ', 50)
   const patch = { ...account, name: ' New name ', enabled: false }
   const saved = await saveAccount({ rpc: async (name,args) => {
-    assert.equal(name, 'update_account')
-    assert.deepEqual(args, { p_id: account.id, p_name: 'New name', p_unit: 'Unit 1', p_responder_type: 'police', p_role: 'Officer', p_enabled: false, p_version: 3, p_reason: 'Suspend' })
+    assert.equal(name, 'manage_account')
+    assert.deepEqual(args, { p_id: account.id, p_name: 'New name', p_station_id: null, p_expected_station_id: null, p_verify: false, p_responder_type: 'police', p_role: 'Officer', p_enabled: false, p_version: 3, p_reason: 'Suspend' })
     return { data: { ...patch, name: 'New name', version: 4 } }
   } }, account, patch, ' Suspend ')
   assert.equal(saved.version, 4)
@@ -166,4 +170,46 @@ test('actual staff gate rechecks suspension and demotion on retained sessions', 
   await new Promise(resolve => setTimeout(resolve,0))
   assert.match(renderToStaticMarkup(render()),/Sign in to review reports/)
   cleanup()
+})
+
+test('account station and approval payload preserves source station and never writes Unit', async () => {
+  const original = { ...account, role: 'Public', requestedAccountType: 'Officer', station: { id: 'node/1', name: 'Original', address: 'Road' } }
+  const patch = { name: 'Applicant', role: 'Officer', responderType: 'police', enabled: true, stationId: 'node/2', verify: true }
+  let args
+  await saveAccount({ rpc: async (_, params) => { args = params; return { data: { ...account, name: patch.name, station: { id: 'node/2', name: 'New', address: '' } } } } }, original, patch, 'Checked credentials')
+  assert.equal(args.p_station_id, 'node/2')
+  assert.equal(args.p_expected_station_id, 'node/1')
+  assert.equal(args.p_verify, true)
+  assert.equal(Object.hasOwn(args, 'p_unit'), false)
+  for (const station of [{ id: '', name: 'Station', address: '' }, { id: 'node/1', name: 2, address: '' }, 'node/1']) assert.throws(() => parseAccounts({ data: [{ ...account, station }], total: 1 }))
+})
+
+test('station directory exposes names and addresses and fails explicitly', async () => {
+  const rows = [{ id: 'node/1', name: 'Police Station', address: 'Malolos' }]
+  assert.deepEqual(await loadAccountStations({ rpc: async name => { assert.equal(name, 'get_login_stations'); return { data: rows } } }), rows)
+  await assert.rejects(loadAccountStations({ rpc: async () => ({ error: new Error('Directory unavailable') }) }), /Directory unavailable/)
+  await assert.rejects(loadAccountStations({ rpc: async () => ({ data: [{}] }) }), /Invalid station/)
+})
+
+test('account tabs show one group and support keyboard switching', () => {
+  let active = 0
+  const { AccountGroups } = component('../src/components/AccountsView.jsx', name => name === 'react' ? { ...React, useState: () => [active, next => { active = next }] } : undefined)
+  const render = () => AccountGroups({ accounts: [account], disabled: false })
+  function all(node, role) {
+    if (!React.isValidElement(node)) return []
+    return [...(node.props.role === role ? [node] : []), ...React.Children.toArray(node.props.children).flatMap(child => all(child, role))]
+  }
+  let tree = render(), tabs = all(tree, 'tab'), panels = all(tree, 'tabpanel')
+  assert.equal(tabs.length, 3)
+  assert.equal(panels.filter(panel => !panel.props.hidden).length, 1)
+  assert.equal(tabs[0].props['aria-selected'], true)
+  tabs[1].props.onClick()
+  tree = render(); tabs = all(tree, 'tab'); panels = all(tree, 'tabpanel')
+  assert.equal(tabs[1].props['aria-selected'], true)
+  assert.equal(panels[1].props.hidden, false)
+  assert.equal(panels[0].props.hidden, true)
+  let focused = -1
+  tabs[1].props.onKeyDown({ key: 'ArrowRight', preventDefault() {}, currentTarget: { parentElement: { querySelectorAll: () => [0,1,2].map(index => ({ focus() { focused = index } })) } } })
+  assert.equal(active, 2)
+  assert.equal(focused, 2)
 })
