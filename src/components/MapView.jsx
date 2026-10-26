@@ -733,11 +733,6 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   }, [visibleReports, mapReady]);
 
   useEffect(() => {
-    if (!mapReady || !searchLocation) return;
-    setSelectedReportId(null);
-    mapRef.current?.flyTo({ center: searchLocation.coordinates, zoom: 14, duration: 700 });
-  }, [searchLocation, mapReady]);
-  useEffect(() => {
     if (!containerRef.current) return;
     const observer = new ResizeObserver(() => mapRef.current?.resize());
     observer.observe(containerRef.current);
@@ -760,6 +755,22 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     else resetMap();
   }, [mapReady, resetMap]);
 
+  useEffect(() => {
+    if (!mapReady || !searchLocation) return;
+    if (searchLocation.reportId) {
+      setSelectedTypes(REPORT_TYPES.map(type => type.id));
+      setIncludePending(true);
+      setSelectedStatus('');
+      setSelectedStation(null);
+      setHoveredIncident(null);
+      setSelectedReportId(searchLocation.reportId);
+      mapRef.current?.resize();
+      focusIncident(searchLocation.coordinates);
+    } else {
+      setSelectedReportId(null);
+      mapRef.current?.flyTo({ center: searchLocation.coordinates, zoom: 14, duration: 700 });
+    }
+  }, [searchLocation, mapReady, focusIncident]);
   const focusSelectedReport = useCallback(() => {
     if (!selectedReport?.coordinates || !mapRef.current) return;
 

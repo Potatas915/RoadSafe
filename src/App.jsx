@@ -109,6 +109,12 @@ function ManagerDashboard({ signedInUser }) {
   const { notifications, unreadCount, markRead, storageWarning } = useNotifications(reports, live ? signedInUser.id : 'demo')
   const currentUser = live ? users.find((user) => user.id === signedInUser.id) : users.find((user) => user.role === ROLES.ADMIN) ?? null
   const selectedReport = displayed.data.find((report) => report.id === activeReport) ?? null
+  function viewReportOnMap(report) {
+    const { longitude, latitude } = report.location.coordinates
+    setActiveReport(null)
+    setSearchLocation({ reportId: report.id, coordinates: [longitude, latitude] })
+    setView('map-view')
+  }
   async function saveReport(id, patch) {
     const actor = previewing ? demoResponse.included.users.find((user) => user.role === ROLES.ADMIN) : currentUser
     if (!actor) throw new Error('Administrator profile is unavailable. Refresh and try again.')
@@ -176,13 +182,13 @@ function ManagerDashboard({ signedInUser }) {
           <MapView searchLocation={searchLocation} reportRecords={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} enforcerClient={live && !previewing ? backend : null} enforcerRosterClient={live ? backend : null} onAssigned={refresh} />
         </div>
         {view === 'dashboard-view' && <DashboardView reports={displayed.data} onOpenReport={setActiveReport} />}
-        {view === 'reports-view' && <ReportsView reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} selectedReportId={activeReport} detailPanel={selectedReport ? <ReportModal embedded key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} /> : null} />}
+        {view === 'reports-view' && <ReportsView reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} selectedReportId={activeReport} detailPanel={selectedReport ? <ReportModal embedded key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onViewOnMap={viewReportOnMap} onClose={() => setActiveReport(null)} /> : null} />}
         {view === 'officers-view' && <OfficersView reports={reports} users={users} onOpenReport={setActiveReport} />}
         {view === 'accounts-view' && live && <AccountsView client={backend} currentUserId={signedInUser?.id} />}
         {view === 'analytics-view' && <AnalyticsView reports={reports} users={users} source={live ? 'Shared reports' : 'Demo / session preview'} />}
       </div>
       {selectedReport && view === 'dashboard-view' && <DashboardReportSummary key={selectedReport.id} report={selectedReport} onClose={() => setActiveReport(null)} onManage={() => setView('reports-view')} />}
-      {selectedReport && !['dashboard-view', 'reports-view'].includes(view) && <ReportModal key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} />}
+      {selectedReport && !['dashboard-view', 'reports-view'].includes(view) && <ReportModal key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onViewOnMap={viewReportOnMap} onClose={() => setActiveReport(null)} />}
     </div></CategoryContext.Provider>
   )
 }

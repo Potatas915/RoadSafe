@@ -185,3 +185,13 @@ test('report table shows labeled coordinates when the place name is missing', ()
   const zero = table({ address: null, coordinates: { latitude: 0, longitude: 0 } })
   assert.ok(zero.includes('Lat: 0.00000') && zero.includes('Lng: 0.00000'))
 })
+
+test('report details replace coordinates with a map button and handle missing locations', () => {
+  const render = report => renderToStaticMarkup(React.createElement(ReportModal, { report, users: reportsResponse.included.users, embedded: true, onViewOnMap() {} }))
+  const html = render(first)
+  assert.match(html, /type="button"[^>]*>[\s\S]*?View on map<\/button>/)
+  assert.ok(!html.includes(`${first.location.coordinates.latitude.toFixed(5)}, ${first.location.coordinates.longitude.toFixed(5)}`))
+  const missing = render({ ...first, location: { ...first.location, coordinates: null } })
+  assert.match(missing, /Map location unavailable/)
+  assert.ok(!missing.includes('View on map'))
+})

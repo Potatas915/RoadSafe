@@ -3,10 +3,10 @@ import { useCategoryLabel, useCategories } from './CategoryContext.js'
 import { canCorrectReport, correctionDraft, correctionValues, VEHICLE_TYPES } from '../models/reportCorrections.js'
 import { officerStatuses } from '../models/staffAccess.js'
 import { useEffect, useRef, useState } from 'react'
-import { REPORT_STATUSES, REPORT_STATUS, ROLES, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
+import { REPORT_STATUSES, REPORT_STATUS, ROLES, validCoordinates, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
 import { DUPLICATE_REVIEW_STATUSES, duplicateOriginals } from '../models/reportDuplicates.js'
 
-export default function ReportModal({ report, users, onSave, onClose, live = false, reports = [], onDuplicate, onOpenOriginal, onCorrect, actorRole = ROLES.ADMIN, viewerId, embedded = false }) {
+export default function ReportModal({ report, users, onSave, onClose, onViewOnMap, live = false, reports = [], onDuplicate, onOpenOriginal, onCorrect, actorRole = ROLES.ADMIN, viewerId, embedded = false }) {
   const categoryLabel = useCategoryLabel()
   const categories = useCategories()
   const [facts, setFacts] = useState(() => correctionDraft(report))
@@ -71,7 +71,7 @@ export default function ReportModal({ report, users, onSave, onClose, live = fal
           <dl className="grid grid-cols-2 gap-4">
             <div><dt className="text-slate-400">Incident time (Manila)</dt><dd>{formatDateTime(report.occurredAt)}</dd></div>
             <div><dt className="text-slate-400">Submitted (Manila)</dt><dd>{formatDateTime(report.submittedAt)}</dd></div>
-            <div><dt className="text-slate-400">Location</dt><dd>{report.location.address ?? 'Confirmed map location'}</dd><dd className="text-orange-300">{coords ? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` : 'No GPS coordinates provided'}</dd></div>
+            <div><dt className="text-slate-400">Location</dt><dd>{report.location.address ?? 'Confirmed map location'}</dd><dd className="mt-1">{validCoordinates(coords) ? onViewOnMap ? <button type="button" onClick={() => onViewOnMap(report)} className="inline-flex items-center gap-1.5 rounded-lg border border-orange-400/30 px-2.5 py-1.5 text-xs font-medium text-orange-400 hover:bg-orange-400/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400"><i aria-hidden="true" className="fa-solid fa-location-dot" />View on map</button> : <span className="text-orange-300">{`${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}`}</span> : 'Map location unavailable'}</dd></div>
             <div><dt className="text-slate-400">Accident category</dt><dd>{categoryLabel(report.categoryId)}</dd></div>
             <div><dt className="text-slate-400">Vehicles involved</dt><dd>{report.vehicles.length ? report.vehicles.map((v) => `${v.count} × ${v.type}`).join(', ') : report.vehicleStatus === 'not_applicable' ? 'Not applicable' : 'Unknown'}</dd></div>
             <div><dt className="text-slate-400">Injury information</dt><dd>{report.injuries.status}</dd><dd>Injured: {report.injuries.injuredCount ?? 'Unknown'}; fatalities: {report.injuries.fatalityCount ?? 'Unknown'}</dd></div>
