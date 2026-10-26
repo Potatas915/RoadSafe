@@ -104,7 +104,7 @@ function ManagerDashboard({ signedInUser }) {
   }, [live])
   const reports = response.data
   const users = response.included.users
-  const previewing = demoPreview && ['dashboard-view', 'reports-view'].includes(view)
+  const previewing = demoPreview && ['map-view', 'dashboard-view', 'reports-view'].includes(view)
   const displayed = previewing ? demoResponse : response
   const { notifications, unreadCount, markRead, storageWarning } = useNotifications(reports, live ? signedInUser.id : 'demo')
   const currentUser = live ? users.find((user) => user.id === signedInUser.id) : users.find((user) => user.role === ROLES.ADMIN) ?? null
@@ -164,16 +164,16 @@ function ManagerDashboard({ signedInUser }) {
         <p className="sr-only" role="status">{source}</p>
         {categoryError && view !== 'settings-view' && <p role="alert" className="px-6 py-2 text-amber-300 text-xs">{categoryError}</p>}
         {view === 'settings-view' && <SettingsView categories={categories} onSave={updateCategory} error={categoryError} onRefresh={refreshCategories} live={live} />}
-        {['dashboard-view', 'reports-view'].includes(view) && <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-6 py-2 border-b border-edge/[.08] bg-edge/[.03] text-xs">
+        {['map-view', 'dashboard-view', 'reports-view'].includes(view) && <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-6 py-2 border-b border-edge/[.08] bg-edge/[.03] text-xs">
           <p className={previewing ? 'text-amber-700 dark:text-amber-300' : 'text-slate-400'}>{previewing ? `${displayed.data.length} fictional demo reports · preview changes last for this session` : source}</p>
           <label className="flex items-center gap-2 text-slate-200">Report source
-            <select aria-label="Dashboard and reports source" value={demoPreview ? 'demo' : 'current'} onChange={(event) => { setActiveReport(null); setDemoPreview(event.target.value === 'demo') }} className="rounded-xl border border-edge/15 bg-edge/[.06] px-3 py-1.5 text-slate-200">
+            <select aria-label="Report source" value={demoPreview ? 'demo' : 'current'} onChange={(event) => { setActiveReport(null); setDemoPreview(event.target.value === 'demo') }} className="rounded-xl border border-edge/15 bg-edge/[.06] px-3 py-1.5 text-slate-200">
               <option value="demo">Demo reports (49)</option><option value="current">{live ? 'Shared reports' : 'Current session reports'}</option>
             </select>
           </label>
         </div>}
         <div style={{ display: view === 'map-view' ? 'flex' : 'none', flex: 1, minHeight: 0, minWidth: 0 }}>
-          <MapView searchLocation={searchLocation} reportRecords={reports} users={users} onOpenReport={setActiveReport} enforcerClient={live ? backend : null} onAssigned={refresh} />
+          <MapView searchLocation={searchLocation} reportRecords={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} enforcerClient={live && !previewing ? backend : null} onAssigned={refresh} />
         </div>
         {view === 'dashboard-view' && <DashboardView reports={displayed.data} onOpenReport={setActiveReport} />}
         {view === 'reports-view' && <ReportsView reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} selectedReportId={activeReport} detailPanel={selectedReport ? <ReportModal embedded key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onClose={() => setActiveReport(null)} /> : null} />}

@@ -37,7 +37,7 @@ import MapReportCard, { MapReportPreview } from "./MapReportCard.jsx";
 import useTheme from "../hooks/useTheme.js";
 import AccidentCategoryIcon from "./AccidentCategoryIcon.jsx";
 import { registerAccidentIcons } from "../models/accidentIcons.js";
-import { luzonReportsResponse, LUZON_SAMPLE_BOUNDS } from "../data/luzonReports.js";
+
 
 const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
 
@@ -321,8 +321,8 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const [selectedTypes, setSelectedTypes] = useState(
     REPORT_TYPES.map((type) => type.id),
   );
-  const [sampleMode, setSampleMode] = useState(true);
-  const mapRecords = sampleMode ? luzonReportsResponse.data : reportRecords;
+
+  const mapRecords = reportRecords;
   const [includePending, setIncludePending] = useState(true);
   const { theme: mapTheme } = useTheme();
   const viewRef = useRef(null);
@@ -477,15 +477,15 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const medicalWrite = useRef(false);
   const nearbyMedical = useMemo(() => nearestFacilities(medical.inventory, searchAnchor, radiusKm), [medical.inventory, searchAnchor, radiusKm]);
   useEffect(() => {
-    if (sampleMode || !enforcerClient || !selectedRecord) return;
+    if (!enforcerClient || !selectedRecord) return;
     let cancelled = false;
     const id = selectedRecord.id;
     getMedicalRecommendation(enforcerClient, id).then(value => {
       if (!cancelled) setMedicalRecommendations(previous => ({ ...previous, [id]: value }));
     }).catch(() => { if (!cancelled) setMedicalError('Could not load the saved facility recommendation. Reopen the incident to retry.'); });
     return () => { cancelled = true; };
-  }, [sampleMode, enforcerClient, selectedRecord?.id, selectedRecord?.version]);
-  useEffect(() => { setMedicalMessage(''); setMedicalError(''); }, [selectedRecord?.id, sampleMode]);
+  }, [enforcerClient, selectedRecord?.id, selectedRecord?.version]);
+  useEffect(() => { setMedicalMessage(''); setMedicalError(''); }, [selectedRecord?.id, enforcerClient]);
   async function recommendMedical(report, station) {
     if (medicalWrite.current || !report || !isMedicalFacility(station)) return;
     setSelectedReportId(report.id); setSelectedStation(station); setHoveredIncident(null);
@@ -494,7 +494,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
     const candidates = nearestFacilities([...medical.inventory.filter(item => item.id !== station.id), station], coordinates, 50);
     if (!candidates.some(item => item.id === station.id)) { setMedicalError('Choose a hospital or clinic within 50 km of this incident.'); return; }
     const facilities = [candidates.find(item => item.id === station.id), ...candidates.filter(item => item.id !== station.id).slice(0, 4)];
-    if (sampleMode || !enforcerClient) {
+    if (!enforcerClient) {
       setMedicalRecommendations(previous => ({ ...previous, [report.id]: { selectedId: station.id, facilities } }));
       setMedicalMessage('Demo recommendation saved for this session.'); return;
     }
@@ -745,10 +745,6 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   }, []);
 
   const resetMap = useCallback(() => {
-    if (sampleMode) {
-      mapRef.current?.fitBounds(LUZON_SAMPLE_BOUNDS, { padding: 35, duration: 700, pitch: 0, bearing: 0 });
-      return;
-    }
     mapRef.current?.flyTo({
       center: INITIAL_CENTER,
       zoom: 10,
@@ -756,7 +752,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
       bearing: 0,
       duration: 700,
     });
-  }, [sampleMode]);
+  }, []);
 
   useEffect(() => {
     if (!mapReady) return;
@@ -1155,7 +1151,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
               <div>
                 <h2 className="roadsafe-map-title">Road Safety Map</h2>
                 <p className="roadsafe-map-subtitle">
-                  {sampleMode ? "Luzon sample incidents · fictional, browser-only" : "Accident reports and traffic-risk locations"}
+                  Accident reports from Reports Management
                 </p>
               </div>
 
@@ -1175,17 +1171,6 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
               </div>
 
               <div className="roadsafe-map-chip">
-                <select aria-label="Map report source" value={sampleMode ? "samples" : "existing"}
-                  className="roadsafe-select"
-                  onChange={(event) => {
-                    const samples = event.target.value === "samples";
-                    setSampleMode(samples); setIncludePending(samples); setSelectedStatus("");
-                    setSelectedReportId(null); setSelectedStation(null);
-                    police.hide(); medical.hide(); radius.hide();
-                  }}>
-                  <option value="samples">Luzon samples</option>
-                  <option value="existing">Existing reports</option>
-                </select>
                 <span className={`roadsafe-map-status ${mapReady && !mapError ? "is-ready" : "is-wait"}`} aria-hidden="true" />
                 <span role="status">{mapError ? "Map setup error" : mapReady ? "Map connected" : "Loading basemap"}</span>
                 <button type="button" className="roadsafe-map-button" onClick={resetMap}>Reset view</button>
@@ -1219,7 +1204,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             report={selectedRecord}
             onClose={() => setSelectedReportId(null)}
             onZoom={focusSelectedReport}
-            onOpenReport={sampleMode ? undefined : onOpenReport}
+            onOpenReport={onOpenReport}
           />}
           {selectedStation?.responderType === 'medical' && <MedicalFacilityCard
             station={selectedStation} scene={scene} nearby={nearbyMedical}
@@ -1232,7 +1217,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             <ResponderCard
               key={selectedStation.id}
               station={selectedStation}
-              enforcerPanel={enforcerClient && selectedStation.responderType === 'police' ? <StationEnforcers key={selectedStation.id} client={enforcerClient} station={selectedStation} report={sampleMode ? null : selectedRecord} onAssigned={onAssigned} /> : null}
+              enforcerPanel={enforcerClient && selectedStation.responderType === 'police' ? <StationEnforcers key={selectedStation.id} client={enforcerClient} station={selectedStation} report={selectedRecord} onAssigned={onAssigned} /> : null}
               selectedPersonnel={personnelByStation[selectedStation.id] ?? 1}
               onPersonnelChange={(count) => setPersonnelByStation(previous => ({ ...previous, [selectedStation.id]: count }))}
               routeInfo={routeInfo}

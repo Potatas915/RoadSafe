@@ -46,7 +46,24 @@ test('report review does not reopen a dashboard summary after sidebar navigation
   let tree = render()
   find(tree, 'Sidebar').props.onChange('reports-view')
   tree = render()
-  const id = find(tree, 'ReportsView').props.reports[0].id
+  const managementReports = find(tree, 'ReportsView').props.reports
+  const id = managementReports[0].id
+  find(tree, 'Sidebar').props.onChange('map-view')
+  tree = render()
+  assert.strictEqual(find(tree, 'MapView').props.reportRecords, managementReports)
+  assert.equal(find(tree, 'MapView').props.enforcerClient, null)
+  find(tree, 'MapView').props.onOpenReport(id)
+  tree = render()
+  assert.equal(find(tree, 'ReportModal').props.report.id, id)
+  const sourcePicker = find(tree, 'select')
+  sourcePicker.props.onChange({ target: { value: 'current' } })
+  tree = render()
+  const currentReports = find(tree, 'MapView').props.reportRecords
+  find(tree, 'Sidebar').props.onChange('reports-view')
+  tree = render()
+  assert.strictEqual(find(tree, 'ReportsView').props.reports, currentReports)
+  find(tree, 'select').props.onChange({ target: { value: 'demo' } })
+  tree = render()
   find(tree, 'ReportsView').props.onOpenReport(id)
   tree = render()
   assert.ok(find(tree, 'ReportsView').props.detailPanel)
@@ -64,3 +81,8 @@ test('report review does not reopen a dashboard summary after sidebar navigation
   assert.equal(find(tree, 'DashboardReportSummary'), null)
 })
 
+
+test('tactical map has no independent fictional incident source', () => {
+  const source = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /luzonReportsResponse|sampleMode|Map report source/)
+})
