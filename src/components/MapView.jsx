@@ -354,11 +354,11 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
   const [routes, setRoutes] = useState({});
   const routeCache = useRef(new Map());
   const [visibleRouteReportIds, setVisibleRouteReportIds] = useState([]);
-  const activeRequests = useMemo(() => responders.activeRequests.filter(entry => entry.station.responderType === 'police'), [responders.activeRequests]);
+  const activeRequests = useMemo(() => enforcerClient ? [] : responders.activeRequests.filter(entry => entry.station.responderType === 'police'), [responders.activeRequests, enforcerClient]);
   const retainedStations = useMemo(() => activeRequests
     .filter(({ request }) => visibleRouteReportIds.includes(String(request.reportId)))
     .map(({ station }) => station), [activeRequests, visibleRouteReportIds]);
-  const stationRequest = selectedStation?.responderType === 'police' ? responders.get(selectedStation.id).request : null;
+  const stationRequest = !enforcerClient && selectedStation?.responderType === 'police' ? responders.get(selectedStation.id).request : null;
   const routeInfo = stationRequest ? routes[stationRequest.id]?.route ?? null : null;
   useEffect(() => {
     if (!mapReady) return;
@@ -1199,12 +1199,14 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
           </div>}
           <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
           <DispatchDrag mapRef={mapRef} ready={mapReady}
+            preview={!enforcerClient}
             getPersonnel={(station) => personnelByStation[station.id] ?? 1}
-            canDispatch={(station) => station.responderType === 'police' && canRequestPersonnel(responders.get(station.id))}
+            canDispatch={(station) => station.responderType === 'police' && (Boolean(enforcerClient) || canRequestPersonnel(responders.get(station.id)))}
             onRecommend={(feature, station) => { const report = mapRecords.find(item => item.id === feature.properties.id); void recommendMedical(report, station); }}
             onDispatch={(station, feature) => {
               setSelectedReportId(feature.properties.id);
               setSelectedStation(station);
+              if (enforcerClient) return;
               responders.requestAssistance(station.id, {
                 reportId: feature.properties.id,
                 label: feature.properties.reportType || 'Incident',
@@ -1228,7 +1230,8 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
             <ResponderCard
               key={selectedStation.id}
               station={selectedStation}
-              enforcerPanel={enforcerRosterClient && selectedStation.responderType === 'police' ? <StationEnforcers key={selectedStation.id} client={enforcerRosterClient} station={selectedStation} report={enforcerClient ? selectedRecord : null} onAssigned={onAssigned} /> : null}
+              preview={!enforcerClient}
+              enforcerPanel={enforcerRosterClient && selectedStation.responderType === 'police' ? <StationEnforcers key={selectedStation.id} client={enforcerRosterClient} station={selectedStation} report={enforcerClient ? selectedRecord : null} users={users} onAssigned={onAssigned} /> : null}
               selectedPersonnel={personnelByStation[selectedStation.id] ?? 1}
               onPersonnelChange={(count) => setPersonnelByStation(previous => ({ ...previous, [selectedStation.id]: count }))}
               routeInfo={routeInfo}
@@ -1236,7 +1239,7 @@ export default function MapView({ searchLocation, reportRecords, users, onOpenRe
               data={responders.get(selectedStation.id)}
               onStatus={(value) => responders.setStatus(selectedStation.id, value)}
               onStationStatus={(value) => responders.setStationStatus(selectedStation.id, value)}
-              onRequest={(details) => scene && responders.requestAssistance(selectedStation.id, scene, details, selectedStation)}
+              onRequest={(details) => !enforcerClient && scene && responders.requestAssistance(selectedStation.id, scene, details, selectedStation)}
               onRelease={() => responders.release(selectedStation.id)}
               onClose={() => setSelectedStation(null)}
             />

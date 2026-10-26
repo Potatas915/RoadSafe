@@ -68,6 +68,11 @@ test('actual station panel escapes names, excludes offline/busy officers and blo
   const sample = render(null)
   assert.match(sample, /disabled=""[^>]*>Assign to selected accident/)
   assert.match(sample, /Shared reports/)
+  const assigned = render({ status: 'In Progress', assignedOfficerId: 'ready' })
+  assert.match(assigned, /Assigned enforcer: &lt;Ready&gt;/)
+  assert.match(assigned, /Case status: In Progress/)
+  assert.ok(!assigned.includes('aria-label="Assign station enforcer"'))
+  assert.ok(!assigned.includes('Assign to selected accident'))
 })
 
 test('map keeps the signed-in station roster separate from demo write access', () => {

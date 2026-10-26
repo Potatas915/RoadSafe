@@ -54,6 +54,7 @@ export default function ResponderCard({
   selectedPersonnel,
   onPersonnelChange,
   enforcerPanel,
+  preview = true,
 }) {
   const [localPersonnel, setLocalPersonnel] = useState(1)
   const personnel = selectedPersonnel ?? localPersonnel
@@ -63,7 +64,7 @@ export default function ResponderCard({
   if (!station || station.responderType !== 'police') return null
 
   const ui = TYPE_UI[station.responderType] || TYPE_UI.police
-  const request = data.request
+  const request = preview ? data.request : null
   const activeScene = request ? { reportId: request.reportId, label: request.sceneLabel, coordinates: request.sceneCoordinates } : scene
   const hasScene = Boolean(activeScene?.coordinates)
   const completed = data.status === 'Completed'
@@ -87,11 +88,11 @@ export default function ResponderCard({
         <div className="min-w-0 flex-1">
           <h3 className="font-bold text-sm text-strong truncate">{station.name}</h3>
           <p className="text-[11px] text-slate-400">{typeName}</p>
-          <span
+          {preview ? <span
             className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_TONE[data.status]}`}
           >
             {completed ? 'Available' : request ? progressStatus : (data.stationStatus ?? 'Available')}
-          </span>
+          </span> : <span className="inline-block mt-1.5 text-[10px] text-blue-300">Enforcer assignment</span>}
         </div>
         <button
           onClick={onClose}
@@ -141,7 +142,7 @@ export default function ResponderCard({
           </div>
         </div>
 
-        <div className="space-y-2 pt-2 border-t border-darkBorder">
+        {preview && <div className="space-y-2 pt-2 border-t border-darkBorder">
           <div className="flex items-center justify-between gap-2">
             <span className={label}>Request Personnel</span>
             <span className="text-[10px] text-slate-500" title="Browser-only request; no dispatch is sent.">Browser only</span>
@@ -167,10 +168,10 @@ export default function ResponderCard({
               {RESPONDER_STATUSES.map((status, index) => <li key={status} aria-current={progressStatus === status ? 'step' : undefined} className={`${index <= RESPONDER_STATUSES.indexOf(progressStatus) ? 'text-orange-400' : 'text-slate-500'} ${status === 'Responding' && progressStatus === status ? 'responder-progress' : ''}`}>{index > 0 && <span aria-hidden="true">› </span>}{status === 'Completed' ? 'Complete' : status}</li>)}
             </ol>
           </div>}
-        </div>
+        </div>}
       </div>
 
-      <div className="p-3 border-t border-darkBorder bg-slate-900/50 rounded-b-2xl space-y-2">
+      {preview && <div className="p-3 border-t border-darkBorder bg-slate-900/50 rounded-b-2xl space-y-2">
         {enforcerPanel && <p className="text-xs text-slate-400">Separate browser-only station request preview below. Use Assign enforcer above for shared accident assignments.</p>}
         {request && routeInfo && <div className="text-xs text-slate-300 space-y-2">
           <p>{routeInfo.isFallback ? 'Direct-line preview · road route unavailable or loading' : 'Driving route displayed · OSRM'}</p>
@@ -187,7 +188,7 @@ export default function ResponderCard({
             Click a report on the map to choose the scene first.
           </p>
         )}
-      </div>
+      </div>}
     </div>
   )
 }

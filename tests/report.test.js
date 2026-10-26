@@ -195,3 +195,20 @@ test('report details replace coordinates with a map button and handle missing lo
   assert.match(missing, /Map location unavailable/)
   assert.ok(!missing.includes('View on map'))
 })
+
+test('report assignment is read-only and directs verified cases to the map', () => {
+  const users = reportsResponse.included.users
+  const render = report => renderToStaticMarkup(React.createElement(ReportModal, { report, users, embedded: true, live: true, onViewOnMap() {} }))
+  const pending = render({ ...first, assignedOfficerId: null })
+  assert.ok(!pending.includes('aria-label="Assign officer"'))
+  assert.match(pending, /No enforcer assigned/)
+  assert.match(pending, /Verify this report/)
+  assert.ok(!pending.includes('>Assign on map<'))
+  const verified = render({ ...first, status: 'Verified', assignedOfficerId: null })
+  assert.match(verified, />Assign on map</)
+  const assigned = render({ ...first, status: 'Assigned', assignedOfficerId: 'officer-mark' })
+  assert.match(assigned, /Officer Mark Santos/)
+  assert.match(assigned, /BL-TM-04/)
+  assert.match(assigned, /View assignment on map/)
+  assert.ok(!assigned.includes('aria-label="Assign officer"'))
+})

@@ -111,6 +111,7 @@ function ManagerDashboard({ signedInUser }) {
   const selectedReport = displayed.data.find((report) => report.id === activeReport) ?? null
   function viewReportOnMap(report) {
     const { longitude, latitude } = report.location.coordinates
+    setDemoPreview(previewing)
     setActiveReport(null)
     setSearchLocation({ reportId: report.id, coordinates: [longitude, latitude] })
     setView('map-view')

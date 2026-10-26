@@ -15,7 +15,8 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
   const officer = actorRole === ROLES.OFFICER
   const statusChoices = officer ? officerStatuses(report, viewerId) : report.isDuplicate ? [REPORT_STATUS.REJECTED] : REPORT_STATUSES
   const [status, setStatus] = useState(officer ? statusChoices[0] ?? report.status : report.status)
-  const [assignedOfficerId, setOfficer] = useState(report.assignedOfficerId ?? '')
+  const assignedOfficerId = report.assignedOfficerId ?? ''
+  const assignedEnforcer = users.find(user => user.id === assignedOfficerId)
   const [officialRemarks, setRemarks] = useState(report.officialRemarks)
   const [rejectionReason, setReason] = useState(report.rejectionReason ?? '')
   const [error, setError] = useState('')
@@ -107,7 +108,12 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
           </section>}
           <div className="space-y-3 border-t border-darkBorder pt-4">
             <label className="block">{officer && statusChoices[0] === 'Verified' ? 'Verification decision' : 'Report status'}<select aria-label="Report status" className={control} value={status} onChange={(e) => setStatus(e.target.value)}>{statusChoices.map((value) => <option key={value}>{value}</option>)}</select></label>
-            {!officer && <label className="block">Assigned officer<select aria-label="Assign officer" className={control} value={assignedOfficerId} onChange={(e) => setOfficer(e.target.value)}><option value="">Unassigned</option>{users.filter((u) => u.role === ROLES.OFFICER && u.enabled !== false).map((u) => <option key={u.id} value={u.id}>{u.name} ({u.unit})</option>)}</select></label>}
+            {!officer && <section aria-label="Assigned enforcer" className="rounded-xl border border-darkBorder bg-darkBg p-3 space-y-2">
+              <h3 className="text-slate-400">Assigned enforcer</h3>
+              <p className="font-semibold text-strong">{assignedOfficerId ? assignedEnforcer ? `${assignedEnforcer.name}${assignedEnforcer.unit ? ` · ${assignedEnforcer.unit}` : ''}` : 'Assigned enforcer details unavailable' : 'No enforcer assigned'}</p>
+              <p className="text-slate-400">{assignedOfficerId ? `Case status: ${report.status}. Progress is updated in the enforcer's mobile workspace.` : report.status !== 'Verified' ? 'Verify this report before assigning an enforcer.' : live ? 'Choose a station and an available enforcer on the Tactical Map.' : 'Demo preview only. Choose Shared reports to assign an enforcer.'}</p>
+              {onViewOnMap && validCoordinates(coords) && <button type="button" disabled={saving} onClick={() => onViewOnMap(report)} className="rounded-lg border border-orange-400/30 px-3 py-2 text-orange-400 hover:bg-orange-400/10 disabled:opacity-50">{assignedOfficerId ? 'View assignment on map' : live && report.status === 'Verified' && !report.isDuplicate ? 'Assign on map' : 'View on map'}</button>}
+            </section>}
             <label className="block">Official remarks<textarea className={control} value={officialRemarks} onChange={(e) => setRemarks(e.target.value)} /></label>
             {status === REPORT_STATUS.REJECTED && <label className="block">Rejection reason (required)<textarea required className={control} value={rejectionReason} onChange={(e) => setReason(e.target.value)} /></label>}
           </div>

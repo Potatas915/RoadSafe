@@ -99,3 +99,11 @@ test('confirming arrival retires only the arrived route and keeps its request su
   assert.equal(hasPendingArrival(advancePersonnelRequest(arrived, 'Completed')), false);
   assert.equal(hasPendingArrival(DEFAULT_RESPONDER), false);
 });
+
+test('shared station cards show assignment without local request progress or completion', () => {
+  const request = createPersonnelRequest(scene, { personnel: 1 })
+  const html = render({ scene, preview: false, enforcerPanel: React.createElement('p', null, 'Official assignment roster'), data: { status: 'Responding', request } })
+  assert.match(html, /Official assignment roster/)
+  assert.match(html, /RA-2026-001/)
+  for (const text of ['Request Personnel', 'Request progress', 'Complete scene', 'Cancel request', 'Browser only', request.id]) assert.ok(!html.includes(text), text)
+})

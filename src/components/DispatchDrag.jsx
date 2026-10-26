@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import './DispatchDrag.css'
 
 // Screen-space HUD; geographic targets are reprojected whenever the map moves.
-export default function DispatchDrag({ mapRef, ready, onDispatch, canDispatch, onRecommend, getPersonnel = () => 1 }) {
+export default function DispatchDrag({ mapRef, ready, onDispatch, canDispatch, onRecommend, getPersonnel = () => 1, preview = true }) {
   const hud = useRef(null), lock = useRef(null), trail = useRef(null)
-  const callbacks = useRef({ onDispatch, canDispatch, onRecommend, getPersonnel })
-  callbacks.current = { onDispatch, canDispatch, onRecommend, getPersonnel }
+  const callbacks = useRef({ onDispatch, canDispatch, onRecommend, getPersonnel, preview })
+  callbacks.current = { onDispatch, canDispatch, onRecommend, getPersonnel, preview }
   const [message, setMessage] = useState('')
   useEffect(() => {
     if (!message) return
@@ -42,7 +42,7 @@ export default function DispatchDrag({ mapRef, ready, onDispatch, canDispatch, o
       hud.current.style.transform = `translate(${x}px, ${y}px)`
       hud.current.dataset.locked = String(Boolean(nearest))
       hud.current.querySelector('span').textContent = nearest ? 'TARGET LOCK · RELEASE' : gesture.medical ? 'CHOOSE HOSPITAL / CLINIC' : 'ACQUIRE INCIDENT'
-      hud.current.querySelector('small').textContent = gesture.medical ? 'FACILITY INFORMATION · NO DISPATCH' : `${callbacks.current.getPersonnel(gesture.station)} PERSONNEL · LOCAL SIM`
+      hud.current.querySelector('small').textContent = gesture.medical ? 'FACILITY INFORMATION · NO DISPATCH' : callbacks.current.preview ? `${callbacks.current.getPersonnel(gesture.station)} PERSONNEL · LOCAL SIM` : 'ENFORCER ASSIGNMENT · SELECT STATION'
       lock.current.style.opacity = nearest ? '1' : '0'
       if (nearest) lock.current.style.transform = `translate(${nearest.position.x}px, ${nearest.position.y}px)`
       const origin = map.project(gesture.origin)
@@ -64,7 +64,7 @@ export default function DispatchDrag({ mapRef, ready, onDispatch, canDispatch, o
           setMessage('Hospital/clinic selected · see facility card')
         } else if (commit && current.target && callbacks.current.canDispatch(current.station)) {
           callbacks.current.onDispatch(current.station, current.target)
-          setMessage(`${callbacks.current.getPersonnel(current.station)} personnel requested · browser-only simulation`)
+          setMessage(callbacks.current.preview ? `${callbacks.current.getPersonnel(current.station)} personnel requested · browser-only simulation` : 'Station selected · choose an available enforcer in the station card')
         } else setMessage('Dispatch cancelled')
       }
       gesture = null
