@@ -25,6 +25,7 @@ import { CategoryContext } from './components/CategoryContext.js'
 import SettingsView from './components/SettingsView.jsx'
 import AuthLanding from './components/AuthLanding.jsx'
 import DemoEntryPanel from './components/DemoEntryPanel.jsx'
+import { demoAssignmentPatch } from './models/demoEnforcers.js'
 
 export default function App() {
   return backend
@@ -180,7 +181,9 @@ function ManagerDashboard({ signedInUser }) {
           </label>
         </div>}
         <div style={{ display: view === 'map-view' ? 'flex' : 'none', flex: 1, minHeight: 0, minWidth: 0 }}>
-          <MapView searchLocation={searchLocation} reportRecords={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} enforcerClient={live && !previewing ? backend : null} enforcerRosterClient={live ? backend : null} onAssigned={refresh} />
+          <MapView searchLocation={searchLocation} reportRecords={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} enforcerClient={live && !previewing ? backend : null} onAssigned={refresh}
+            onDemoSave={live && !previewing ? undefined : saveReport}
+            onDemoAssign={live && !previewing ? undefined : (report, _stationId, officerId) => saveReport(report.id, demoAssignmentPatch(displayed.included.users, displayed.data, report.id, officerId))} />
         </div>
         {view === 'dashboard-view' && <DashboardView reports={displayed.data} onOpenReport={setActiveReport} />}
         {view === 'reports-view' && <ReportsView reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} selectedReportId={activeReport} detailPanel={selectedReport ? <ReportModal embedded key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onViewOnMap={viewReportOnMap} onClose={() => setActiveReport(null)} /> : null} />}

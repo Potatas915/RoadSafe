@@ -21,7 +21,8 @@ test('shared progress and routes ignore saved requests until their accident has 
   for (const status of ['Assigned', 'In Progress']) {
     assert.equal(vm.runInNewContext(expression, { savedStationRequest: request, enforcerClient: {}, mapRecords: [{ id: 'report', status, assignedOfficerId: 'officer' }], hasActiveOfficer }), request)
   }
-  assert.equal(vm.runInNewContext(expression, { savedStationRequest: request, enforcerClient: null, mapRecords: [], hasActiveOfficer }), request)
+  assert.equal(vm.runInNewContext(expression, { savedStationRequest: request, enforcerClient: null, mapRecords: [], hasActiveOfficer }), null)
+  assert.equal(vm.runInNewContext(expression, { savedStationRequest: request, enforcerClient: null, mapRecords: [{ id: 'report', status: 'Assigned', assignedOfficerId: 'demo-officer' }], hasActiveOfficer }), request)
 })
 test('personnel requests validate inputs and snapshot the selected scene', () => {
   const original = structuredClone(scene)
@@ -98,8 +99,11 @@ test('completion frees the station for another drag while keeping the completed 
   assert.equal(hasPendingArrival(completed), false)
   const html = render({ data: completed })
   assert.ok(html.includes(request.id))
-  assert.ok(html.includes('Station available'))
-  for (const removed of ['New request', 'Complete scene', 'Cancel request', 'responder-progress']) assert.ok(!html.includes(removed))
+  assert.ok(html.includes('Route complete'))
+  assert.ok(html.includes('case assignment is unchanged'))
+  assert.ok(!html.includes('Station available'))
+  assert.ok(html.includes('Cancel request'))
+  for (const removed of ['New request', 'Complete scene', 'responder-progress']) assert.ok(!html.includes(removed))
 })
 
 test('confirming arrival retires only the arrived route and keeps its request summary', () => {
@@ -126,7 +130,7 @@ test('shared station cards retain official assignment alongside local request pr
 })
 
 test('shared station card waits for officer assignment instead of offering a separate send action', () => {
-  const html = render({ scene, sharedRequest: true, data: DEFAULT_RESPONDER })
+  const html = render({ scene, assignmentRequired: true, data: DEFAULT_RESPONDER })
   assert.match(html, /Assign an available officer above to send the request and start responding/)
   assert.ok(!html.includes('Request police personnel'))
   assert.ok(!html.includes('Request progress'))
@@ -146,7 +150,7 @@ test('cancel request disables repeated actions and shows server failures without
     } } : require(name),
   })
   const request = createPersonnelRequest(scene, { personnel: 1 })
-  const props = { station, scene, sharedRequest: true, enforcerPanel: React.createElement('p', null, 'Roster'), data: { status: 'Responding', request }, onRelease: () => new Promise((_resolve, reject) => { rejectSave = reject }) }
+  const props = { station, scene, assignmentRequired: true, enforcerPanel: React.createElement('p', null, 'Roster'), data: { status: 'Responding', request }, onRelease: () => new Promise((_resolve, reject) => { rejectSave = reject }) }
   const render = () => { cursor = 0; return module.exports.default(props) }
   function find(node, predicate) {
     if (!React.isValidElement(node)) return null

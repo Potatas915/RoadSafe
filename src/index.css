@@ -260,3 +260,14 @@ input.bg-darkBg:not([class*="bg-darkBg/"]), select.bg-darkBg:not([class*="bg-dar
   .lp-bar { transform: scaleX(.35); }
   .lp-drive { offset-distance: 30%; }
 }
+
+/* Keep account fields and actions readable inside the native modal. */
+.account-editor { border-radius: 16px; overflow: hidden; }
+.account-editor > form { max-height: calc(90dvh - 2px); }
+.account-editor header { flex-shrink: 0; }
+.account-editor .dx-input { border-radius: 10px; min-height: 42px; }
+.account-editor textarea.dx-input { resize: vertical; }
+.account-editor :is(input, select, textarea, summary, button):focus-visible { outline: 2px solid #f97316; outline-offset: 3px; }
+.account-editor footer { flex-shrink: 0; }
+.account-editor footer button { min-height: 42px; }
+@media (max-width: 480px) { .account-editor footer button { flex: 1 1 auto; } }

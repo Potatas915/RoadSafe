@@ -29,6 +29,9 @@ test('public account editor is a dialog with basic profile fields and collapsed 
   assert.doesNotMatch(html, /Account unit/)
   assert.match(html, /<details[^>]*><summary[^>]*>Permissions/)
   assert.doesNotMatch(html, /Station affiliation/)
+  assert.doesNotMatch(html, /Close account editor|>Close<\/button>/)
+  assert.match(html, /aria-label="Account summary"/)
+  assert.match(html, /Profile &amp; access/)
 })
 test('approval cannot submit without identity confirmation and a station', () => {
   for (const [station, verified] of [[false, false], [true, false], [false, true]]) {
@@ -191,7 +194,7 @@ test('dirty close reveals confirmation and focuses Keep editing, then restores t
   let focused = 0, restored = 0, scrolled = 0
   const render = harness({}, { document: { activeElement: { focus() { restored++ } } } })
   find(render(), n => n.props?.['aria-label'] === 'Account name').props.onChange({ target: { value: 'Changed' } })
-  find(render(), n => n.props?.['aria-label'] === 'Close account editor').props.onClick()
+  find(render(), n => n.type === 'button' && n.props.children === 'Cancel').props.onClick()
   const tree = render()
   const panel = find(tree, n => n.props?.role === 'alert' && find(n, child => child.type === 'button' && child.props.children === 'Keep editing'))
   panel.ref.current = { scrollIntoView() { scrolled++ } }

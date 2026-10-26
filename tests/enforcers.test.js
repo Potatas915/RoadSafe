@@ -7,6 +7,7 @@ import vm from 'node:vm'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createRequire } from 'node:module'
+import { hasActiveOfficer } from '../src/data/responders.js'
 
 test('station response starts only after assignment succeeds, including when feed refresh fails', async () => {
   const source = readFileSync(new URL('../src/components/StationEnforcers.jsx', import.meta.url), 'utf8')
@@ -59,7 +60,7 @@ test('cancelling a shared request clears the officer through the versioned repor
 test('map cancellation targets the request accident, waits for unassignment, and retains failed requests', async () => {
   const source = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
   const body = source.match(/async function cancelRequest\(\) \{([\s\S]*?)\n  \}/)[1]
-  const report = { id: 'request-report' }
+  const report = { id: 'request-report', status: 'Assigned', assignedOfficerId: 'officer', officialRemarks: 'Original' }
   for (const outcome of ['success', 'failure', 'demo', 'refresh-failure']) {
     const calls = []
     let resolveSave, rejectSave
@@ -67,12 +68,13 @@ test('map cancellation targets the request accident, waits for unassignment, and
     const cancel = vm.runInNewContext('(async () => {' + body + '})', {
       selectedStation: { id: 'station' }, selectedRecord: { id: 'another-selected-report' },
       responders: { get: () => ({ request: { reportId: report.id } }), release: id => calls.push(`release:${id}`) },
-      mapRecords: [report], enforcerClient: outcome === 'demo' ? null : {},
+      mapRecords: [report], enforcerClient: outcome === 'demo' ? null : {}, hasActiveOfficer,
+      onDemoSave: async (id, patch) => { assert.equal(id, report.id); assert.equal(patch.status, 'Verified'); assert.equal(patch.assignedOfficerId, null); calls.push('demo-save') },
       cancelStationEnforcer: async (_client, target) => { assert.equal(target, report); calls.push('save'); await save },
       onAssigned: async () => { calls.push('refresh'); if (outcome === 'refresh-failure') throw Error('offline') },
     })
     const pending = cancel()
-    if (outcome === 'demo') { await pending; assert.deepEqual(calls, ['release:station']); continue }
+    if (outcome === 'demo') { await pending; assert.deepEqual(calls, ['demo-save', 'release:station']); continue }
     assert.deepEqual(calls, ['save'])
     if (outcome === 'failure') {
       rejectSave(Error('Stale report'))
@@ -146,7 +148,7 @@ test('actual station panel escapes names, excludes offline/busy officers and blo
   assert.doesNotMatch(live, /disabled=""[^>]*>Assign to selected accident/)
   const sample = render(null)
   assert.match(sample, /disabled=""[^>]*>Assign to selected accident/)
-  assert.match(sample, /Shared reports/)
+  assert.match(sample, /Select an accident on the map/)
   const assigned = render({ status: 'In Progress', assignedOfficerId: 'ready' })
   assert.match(assigned, /Assigned enforcer: &lt;Ready&gt;/)
   assert.match(assigned, /Case status: In Progress/)
@@ -154,12 +156,13 @@ test('actual station panel escapes names, excludes offline/busy officers and blo
   assert.ok(!assigned.includes('Assign to selected accident'))
 })
 
-test('map keeps the signed-in station roster separate from demo write access', () => {
+test('map keeps each source roster and assignment writes separate', () => {
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8')
   const map = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
-  assert.ok(app.includes('enforcerRosterClient={live ? backend : null}'), 'roster stays available while previewing')
-  assert.ok(map.includes('client={enforcerRosterClient}'), 'station panel loads the roster')
-  assert.ok(map.includes('report={enforcerClient ? stationRecord : null}'), 'demo records cannot be assigned')
+  assert.ok(!app.includes('enforcerRosterClient='), 'demo never receives the live roster client')
+  assert.ok(map.includes('client={enforcerClient}'), 'only shared mode loads a real roster')
+  assert.ok(map.includes('report={stationRecord}'), 'both sources can assign their own records')
+  assert.ok(map.includes('demoRows={demoStationEnforcers(users, mapRecords)}'))
   const requested = { id: 'request-report' }, selected = { id: 'selected-report' }
   const expression = map.match(/const stationRecord = ([^;]+);/)[1]
   assert.equal(vm.runInNewContext(expression, { stationRequest: { reportId: requested.id }, mapRecords: [requested, selected], selectedRecord: selected }), requested)

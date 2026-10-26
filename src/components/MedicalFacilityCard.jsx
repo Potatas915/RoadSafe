@@ -1,6 +1,6 @@
 import { facilityDistance } from '../models/medicalFacilities.js'
 
-export default function MedicalFacilityCard({ station, scene, nearby = [], selectedId, onSelect, onRecommend, busy, message, error, onClose }) {
+export default function MedicalFacilityCard({ station, scene, nearby = [], selectedId, sourceLabel, onSelect, onRecommend, busy, message, error, onClose }) {
   const distance = scene?.coordinates ? facilityDistance(station, scene.coordinates) : null
   return <section aria-label="Medical facility information" className="absolute left-3 bottom-3 z-10 w-[440px] max-w-[calc(100%-24px)] max-h-[calc(100%-24px)] overflow-y-auto bg-darkCard border border-darkBorder rounded-2xl shadow-2xl text-xs">
     <header className="p-3 border-b border-darkBorder flex items-start gap-3">
@@ -9,6 +9,7 @@ export default function MedicalFacilityCard({ station, scene, nearby = [], selec
       <button type="button" onClick={onClose} aria-label="Close medical facility" className="text-slate-400 hover:text-strong"><i className="fa-solid fa-xmark" /></button>
     </header>
     <div className="p-3 space-y-3 text-slate-300">
+      {sourceLabel && <p className="text-slate-400">{sourceLabel}</p>}
       <div className="p-3 bg-darkBg border border-darkBorder rounded-xl space-y-1"><p>{station.address || 'Address not available'}</p><p className="font-mono text-orange-400">{station.lat.toFixed(4)}° N, {station.lng.toFixed(4)}° E</p></div>
       {scene ? <p className="[overflow-wrap:anywhere]">{scene.label} · {scene.reportId}{distance !== null && <span className="block text-slate-400 mt-1">{distance.toFixed(1)} km straight-line distance from incident</span>}</p> : <p>Select an incident or drag its icon onto a hospital or clinic.</p>}
       {nearby.length > 0 && <div><h4 className="font-semibold text-strong mb-2">Nearest mapped hospitals & clinics</h4><ul className="space-y-1">{nearby.slice(0, 5).map(facility => <li key={facility.id}><button type="button" onClick={() => onSelect(facility)} className="w-full text-left p-2 rounded-lg hover:bg-slate-800 border border-darkBorder"><span className="block text-strong">{facility.name}{selectedId === facility.id ? ' · Recommended' : ''}</span><span className="text-slate-400">{facility.kind} · {facility.distanceKm.toFixed(1)} km</span></button></li>)}</ul></div>}

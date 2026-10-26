@@ -50,7 +50,8 @@ export default function ResponderCard({
   onRelease,
   onClose,
   enforcerPanel,
-  sharedRequest = false,
+  assignmentRequired = false,
+  sourceLabel,
   preview = true,
 }) {
   const [note, setNote] = useState('')
@@ -94,7 +95,7 @@ export default function ResponderCard({
           {preview ? <span
             className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_TONE[data.status]}`}
           >
-            {completed ? 'Available' : request ? progressStatus : (data.stationStatus ?? 'Available')}
+            {completed ? 'Route complete' : request ? progressStatus : assignmentRequired ? 'Station information' : (data.stationStatus ?? 'Available')}
           </span> : <span className="inline-block mt-1.5 text-[10px] text-blue-300">Enforcer assignment</span>}
         </div>
         <button
@@ -148,9 +149,9 @@ export default function ResponderCard({
         {preview && <div className="space-y-2 pt-2 border-t border-darkBorder">
           <div className="flex items-center justify-between gap-2">
             <span className={label}>Request Personnel</span>
-            <span className="text-[10px] text-slate-500" title={sharedRequest ? 'Local route request; cancellation also releases the shared assignment.' : 'Browser-only request; no dispatch is sent.'}>{sharedRequest ? 'Shared report' : 'Browser only'}</span>
+            <span className="text-[10px] text-slate-500">{sourceLabel ?? 'Browser only'}</span>
           </div>
-          {!request && !sharedRequest ? <>
+          {!request && !assignmentRequired ? <>
             <details className="text-[11px] text-slate-400">
               <summary className="cursor-pointer">Note (optional){note && ' · added'}</summary>
               <textarea aria-label="Note (optional)" value={note} maxLength={500} rows={2} onChange={(event) => setNote(event.target.value)} placeholder="Additional personnel needs…" className={`${select} mt-2 resize-y`} />
@@ -170,15 +171,15 @@ export default function ResponderCard({
 
       {preview && <div className="p-3 border-t border-darkBorder bg-slate-900/50 rounded-b-2xl space-y-2">
         {releaseError && <p role="alert" className="text-xs text-red-300">{releaseError}</p>}
-        {enforcerPanel && <p className="text-xs text-slate-400">{sharedRequest ? 'Use Assign enforcer above to assign an officer. Cancelling this request also releases the assigned officer. In-progress cases return to Under Review.' : 'Separate browser-only station request preview below. Use Assign enforcer above for shared accident assignments.'}</p>}
+        {enforcerPanel && <p className="text-xs text-slate-400">Use Assign enforcer above to assign an officer. Cancelling this request also releases the assigned officer. In-progress cases return to Under Review.</p>}
         {request && routeInfo && <div className="text-xs text-slate-300 space-y-2">
           <p>{routeInfo.isFallback ? 'Direct-line preview · road route unavailable or loading' : 'Driving route displayed · OSRM'}</p>
           <button type="button" aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)} className="md:hidden text-slate-300 underline">{showDetails ? 'Hide request details' : 'Show request details'}</button>
         </div>}
-        {request ? completed ? <p role="status" className="text-xs text-emerald-400">Scene complete · Station available. Drag this station to another report to respond again.</p> : <>
-          <button type="button" disabled={releasing} onClick={() => onStatus('Completed')} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs transition disabled:opacity-50">Complete scene</button>
+        {request ? <>
+          {completed ? <p role="status" className="text-xs text-emerald-400">Route complete. The case assignment is unchanged. Cancel request to release the officer.</p> : <button type="button" disabled={releasing} onClick={() => onStatus('Completed')} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs transition disabled:opacity-50">Complete scene</button>}
           <button type="button" disabled={releasing} onClick={cancelRequest} className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold text-xs transition disabled:opacity-50">{releasing ? 'Cancelling…' : 'Cancel request'}</button>
-        </> : !sharedRequest && <button type="button" onClick={() => onRequest({ personnel: 1, note })} disabled={!hasScene} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs shadow transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-600">
+        </> : !assignmentRequired && <button type="button" onClick={() => onRequest({ personnel: 1, note })} disabled={!hasScene} className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-semibold text-xs shadow transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-600">
           <i className="fa-solid fa-bullhorn mr-2" />Request {station.responderType === 'police' ? 'police' : 'medical'} personnel
         </button>}
         {!request && !hasScene && (

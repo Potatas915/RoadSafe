@@ -7,6 +7,7 @@ const users = [
   { id: 'admin-demo', name: 'Demo Administrator', role: ROLES.ADMIN },
   { id: 'officer-mark', name: 'Officer Mark Santos', role: ROLES.OFFICER, unit: 'BL-TM-04', responderType: 'police' },
   { id: 'officer-juan', name: 'Officer Juan Dela Cruz', role: ROLES.OFFICER, unit: 'BL-TM-09', responderType: 'police' },
+  { id: 'officer-sara', name: 'Officer Sara Reyes', role: ROLES.OFFICER, unit: 'BL-TM-12', responderType: 'police' },
   { id: 'medic-ana', name: 'Medic Ana Reyes', role: ROLES.OFFICER, unit: 'MED-02', responderType: 'medical' },
   { id: 'medic-paolo', name: 'Medic Paolo Cruz', role: ROLES.OFFICER, unit: 'MED-05', responderType: 'medical' },
   { id: 'ambulance-a1', name: 'Ambulance Unit A-1', role: ROLES.OFFICER, unit: 'AMB-01', responderType: 'medical' },
@@ -40,7 +41,7 @@ function makeReport(index, center, coordinates) {
     injuries: index % 3 === 0 ? { status: 'injured', injuredCount: 1, fatalityCount: 0 }
       : index % 3 === 1 ? { status: 'none', injuredCount: 0, fatalityCount: 0 } : { status: 'unknown', injuredCount: null, fatalityCount: null },
     severity: index % 3 === 0 ? 2 : 1, evidence: demoEvidence(index), status,
-    assignedOfficerId: official ? index % 2 ? 'officer-mark' : 'officer-juan' : null,
+    assignedOfficerId: ['Assigned', 'In Progress', 'Resolved / Closed'].includes(status) ? index % 2 ? 'officer-mark' : 'officer-juan' : null,
     officialRemarks: official ? 'Demo record reviewed by the traffic desk.' : '',
     verification: { verifiedAt: official ? `2026-10-${day}T10:10:00+08:00` : null, verifiedBy: official ? 'admin-demo' : null },
     rejectionReason: status === REPORT_STATUS.REJECTED ? 'Demo duplicate of an existing report.' : null,
