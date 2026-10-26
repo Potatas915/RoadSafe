@@ -1,12 +1,67 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { loadStationEnforcers, syncPoliceDirectory, availableEnforcer, assignStationEnforcer } from '../src/backend/enforcers.js'
+import { loadStationEnforcers, syncPoliceDirectory, availableEnforcer, assignStationEnforcer, cancelStationEnforcer } from '../src/backend/enforcers.js'
 import { readFileSync } from 'node:fs'
 import { transformSync } from 'esbuild'
 import vm from 'node:vm'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createRequire } from 'node:module'
+
+test('cancelling a shared request clears the officer through the versioned report workflow', async () => {
+  for (const [status, next] of [['Assigned', 'Verified'], ['In Progress', 'Under Review']]) {
+    let calls = 0
+    await cancelStationEnforcer({ rpc: async (name, args) => {
+      calls++
+      assert.equal(name, 'update_accident_report')
+      assert.equal(args.p_id, 'request-report')
+      assert.equal(args.p_status, next)
+      assert.equal(args.p_officer, null)
+      assert.equal(args.p_version, 7)
+      assert.match(args.p_remarks, /Original remarks/)
+      assert.match(args.p_remarks, /cancelled/i)
+      return {}
+    } }, { id: 'request-report', status, assignedOfficerId: 'officer', version: 7, officialRemarks: 'Original remarks' })
+    assert.equal(calls, 1)
+  }
+  let calls = 0
+  const client = { rpc: async () => { calls++; return {} } }
+  for (const report of [{ status: 'Verified' }, { status: 'Resolved / Closed', assignedOfficerId: 'officer' }]) await cancelStationEnforcer(client, report)
+  assert.equal(calls, 0)
+  await assert.rejects(cancelStationEnforcer(client, null), /Refresh/)
+  await assert.rejects(cancelStationEnforcer({ rpc: async () => ({ error: new Error('Report changed') }) }, { status: 'Assigned', assignedOfficerId: 'officer' }), /Report changed/)
+})
+
+test('map cancellation targets the request accident, waits for unassignment, and retains failed requests', async () => {
+  const source = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
+  const body = source.match(/async function cancelRequest\(\) \{([\s\S]*?)\n  \}/)[1]
+  const report = { id: 'request-report' }
+  for (const outcome of ['success', 'failure', 'demo', 'refresh-failure']) {
+    const calls = []
+    let resolveSave, rejectSave
+    const save = new Promise((resolve, reject) => { resolveSave = resolve; rejectSave = reject })
+    const cancel = vm.runInNewContext('(async () => {' + body + '})', {
+      selectedStation: { id: 'station' }, selectedRecord: { id: 'another-selected-report' },
+      responders: { get: () => ({ request: { reportId: report.id } }), release: id => calls.push(`release:${id}`) },
+      mapRecords: [report], enforcerClient: outcome === 'demo' ? null : {},
+      cancelStationEnforcer: async (_client, target) => { assert.equal(target, report); calls.push('save'); await save },
+      onAssigned: async () => { calls.push('refresh'); if (outcome === 'refresh-failure') throw Error('offline') },
+    })
+    const pending = cancel()
+    if (outcome === 'demo') { await pending; assert.deepEqual(calls, ['release:station']); continue }
+    assert.deepEqual(calls, ['save'])
+    if (outcome === 'failure') {
+      rejectSave(Error('Stale report'))
+      await assert.rejects(pending, /Stale report/)
+      assert.deepEqual(calls, ['save'])
+    } else {
+      resolveSave()
+      if (outcome === 'refresh-failure') await assert.rejects(pending, /Request cancelled and officer released/)
+      else await pending
+      assert.deepEqual(calls, ['save', 'release:station', 'refresh'])
+    }
+  }
+})
 
 test('station directory preserves OSM node/way/relation identity and strips UI metadata', async () => {
   await syncPoliceDirectory({ rpc: async (name, args) => {
@@ -80,5 +135,9 @@ test('map keeps the signed-in station roster separate from demo write access', (
   const map = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
   assert.ok(app.includes('enforcerRosterClient={live ? backend : null}'), 'roster stays available while previewing')
   assert.ok(map.includes('client={enforcerRosterClient}'), 'station panel loads the roster')
-  assert.ok(map.includes('report={enforcerClient ? selectedRecord : null}'), 'demo records cannot be assigned')
+  assert.ok(map.includes('report={enforcerClient ? stationRecord : null}'), 'demo records cannot be assigned')
+  const requested = { id: 'request-report' }, selected = { id: 'selected-report' }
+  const expression = map.match(/const stationRecord = ([^;]+);/)[1]
+  assert.equal(vm.runInNewContext(expression, { stationRequest: { reportId: requested.id }, mapRecords: [requested, selected], selectedRecord: selected }), requested)
+  assert.equal(vm.runInNewContext(expression, { stationRequest: null, mapRecords: [requested, selected], selectedRecord: selected }), selected)
 })

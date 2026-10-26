@@ -1,7 +1,32 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import vm from 'node:vm'
 import { visibleReportRoutes, previewRoute, fetchRoute, drawRoute, drawRoutes, focusRoute, routePadding } from '../src/services/routing.js'
 const from = [120.9, 14.8], to = [120.92, 14.82]
+
+test('map automatically creates a fallback route and upgrades it after a personnel request in either mode', async () => {
+  const source = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
+  const effect = source.match(/useEffect\(\(\) => \{\s*if \(!mapReady\) return;([\s\S]*?)\}, \[mapReady, activeRequests\]\);/)[1]
+  for (const shared of [false, true]) {
+    let routes = {}, resolveRoute
+    const road = { geometry: { type: 'LineString', coordinates: [from, [120.91, 14.81], to] }, isFallback: false }
+    const cleanup = vm.runInNewContext('(() => {' + effect + '})()', {
+      enforcerClient: shared ? {} : null, AbortController,
+      activeRequests: [{ station: { lng: from[0], lat: from[1], responderType: 'police' }, request: { id: 'request', reportId: 'incident', sceneCoordinates: to } }],
+      routeCache: { current: new Map() }, previewRoute,
+      fetchRoute: () => new Promise(resolve => { resolveRoute = resolve }),
+      setRoutes: next => { routes = typeof next === 'function' ? next(routes) : next },
+    })
+    assert.equal(routes.request.route.isFallback, true)
+    const map = { querySourceFeatures: () => [{ properties: { id: 'incident' } }] }
+    assert.equal(visibleReportRoutes(map, Object.values(routes), 'incident').length, 1)
+    resolveRoute(road)
+    await Promise.resolve()
+    assert.equal(routes.request.route, road)
+    cleanup()
+  }
+})
 
 test('routes hide for clustered or filtered accidents and return for individual accidents', () => {
   const routes = [{ reportId: 'A' }, { reportId: 'B' }]

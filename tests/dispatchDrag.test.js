@@ -144,7 +144,7 @@ test('shared drag describes station selection rather than a simulated personnel 
   drag.cleanup()
 })
 
-test('map drag opens the selected station and only creates requests in demo mode', () => {
+test('map drag selects the accident and creates its route request in demo and shared modes', () => {
   const source = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
   const callback = source.match(/onDispatch=\{(\(station, feature\) => \{[\s\S]*?)\}\} \/>/)[1] + '}'
   const station = { id: 'station-1' }, feature = { properties: { id: 'report-1', reportType: 'collision' }, geometry: { coordinates: [120, 14] } }
@@ -157,6 +157,9 @@ test('map drag opens the selected station and only creates requests in demo mode
     })
     dispatch(station, feature)
     assert.deepEqual(selections, ['report-1', station])
-    assert.equal(calls.length, live ? 0 : 1)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0][1].reportId, 'report-1')
+    assert.deepEqual(Array.from(calls[0][1].coordinates), [120, 14])
+    assert.equal(calls[0][3], station)
   }
 })

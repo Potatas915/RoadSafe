@@ -100,10 +100,100 @@ test('confirming arrival retires only the arrived route and keeps its request su
   assert.equal(hasPendingArrival(DEFAULT_RESPONDER), false);
 });
 
-test('shared station cards show assignment without local request progress or completion', () => {
+test('shared station cards retain official assignment alongside local request progress and routes', () => {
   const request = createPersonnelRequest(scene, { personnel: 1 })
-  const html = render({ scene, preview: false, enforcerPanel: React.createElement('p', null, 'Official assignment roster'), data: { status: 'Responding', request } })
+  const html = render({ scene, enforcerPanel: React.createElement('p', null, 'Official assignment roster'), data: { status: 'Responding', request }, routeInfo: { isFallback: false } })
   assert.match(html, /Official assignment roster/)
   assert.match(html, /RA-2026-001/)
-  for (const text of ['Request Personnel', 'Request progress', 'Complete scene', 'Cancel request', 'Browser only', request.id]) assert.ok(!html.includes(text), text)
+  for (const text of ['Request Personnel', 'Request progress', 'Complete scene', 'Cancel request', 'Browser only', 'Driving route displayed', request.id]) assert.ok(html.includes(text), text)
+  const map = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
+  assert.ok(!map.includes('preview={!enforcerClient}'), 'shared requests use the same card and drag controls')
+  assert.ok(!map.includes('if (enforcerClient) return;'), 'shared drag creates a request and route')
+  assert.ok(!map.includes('enforcerClient ? [] : responders.activeRequests'), 'shared routes stay enabled')
+  assert.ok(!map.includes('!enforcerClient && scene &&'), 'shared request button creates a request')
+})
+
+test('cancel request disables repeated actions and shows server failures without discarding progress', async () => {
+  const values = []
+  let cursor = 0, rejectSave
+  const module = { exports: {} }, require = createRequire(filename)
+  vm.runInNewContext(transformSync(readFileSync(filename, 'utf8'), { loader: 'jsx', jsx: 'automatic', format: 'cjs' }).code, {
+    module, exports: module.exports,
+    require: name => name === 'react' ? { useState(initial) {
+      const slot = cursor++
+      if (!(slot in values)) values[slot] = initial
+      return [values[slot], value => { values[slot] = value }]
+    } } : require(name),
+  })
+  const request = createPersonnelRequest(scene, { personnel: 1 })
+  const props = { station, scene, sharedRequest: true, enforcerPanel: React.createElement('p', null, 'Roster'), data: { status: 'Responding', request }, onRelease: () => new Promise((_resolve, reject) => { rejectSave = reject }) }
+  const render = () => { cursor = 0; return module.exports.default(props) }
+  function find(node, predicate) {
+    if (!React.isValidElement(node)) return null
+    if (predicate(node)) return node
+    for (const child of React.Children.toArray(node.props.children)) {
+      const result = find(child, predicate)
+      if (result) return result
+    }
+    return null
+  }
+  let tree = render()
+  const pending = find(tree, node => node.type === 'button' && node.props.children === 'Cancel request').props.onClick()
+  tree = render()
+  assert.equal(find(tree, node => node.type === 'button' && node.props.children === 'Cancelling…').props.disabled, true)
+  assert.equal(find(tree, node => node.type === 'button' && node.props.children === 'Complete scene').props.disabled, true)
+  rejectSave(Error('This report changed. Refresh it before saving.'))
+  await pending
+  tree = render()
+  assert.match(find(tree, node => node.props.role === 'alert').props.children, /report changed/)
+  const html = renderToStaticMarkup(tree)
+  assert.ok(html.includes(request.id))
+  assert.ok(html.includes('cancellation') || html.includes('Cancelling this request also releases'))
+  assert.equal(find(tree, node => node.type === 'button' && node.props.children === 'Cancel request').props.disabled, false)
+})
+
+test('demo and shared requests persist independently and restore their route snapshots', () => {
+  const filename = fileURLToPath(new URL('../src/hooks/useResponderState.js', import.meta.url))
+  const storage = new Map()
+  function mount() {
+    const values = [], effects = []
+    let cursor = 0
+    const hooks = {
+      useState(initial) {
+        const slot = cursor++
+        if (!(slot in values)) values[slot] = typeof initial === 'function' ? initial() : initial
+        return [values[slot], next => { values[slot] = typeof next === 'function' ? next(values[slot]) : next }]
+      },
+      useEffect: fn => effects.push(fn), useCallback: fn => fn, useMemo: fn => fn(),
+    }
+    const module = { exports: {} }, require = createRequire(filename)
+    vm.runInNewContext(transformSync(readFileSync(filename, 'utf8'), { format: 'cjs' }).code, {
+      module, exports: module.exports,
+      require: name => name === 'react' ? hooks : require(name),
+      localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
+    })
+    return () => {
+      cursor = 0; effects.length = 0
+      const demo = module.exports.default(null)
+      const shared = module.exports.default(null, 'roadsafe:responders:shared:v3')
+      effects.forEach(fn => fn())
+      return { demo, shared }
+    }
+  }
+  let render = mount(), state = render()
+  state.demo.requestAssistance(station.id, scene, { personnel: 2 }, station)
+  state = render()
+  assert.equal(state.demo.activeRequests.length, 1)
+  assert.equal(state.shared.activeRequests.length, 0)
+  state.shared.requestAssistance(station.id, { ...scene, reportId: 'shared-report' }, { personnel: 1 }, station)
+  state = render()
+  assert.equal(state.demo.get(station.id).request.reportId, scene.reportId)
+  assert.equal(state.shared.get(station.id).request.reportId, 'shared-report')
+  render = mount(); state = render()
+  assert.equal(state.demo.activeRequests[0].request.reportId, scene.reportId)
+  assert.equal(state.shared.activeRequests[0].request.reportId, 'shared-report')
+  state.shared.setStatus(station.id, 'Completed')
+  state = render()
+  assert.equal(state.shared.activeRequests.length, 0)
+  assert.equal(state.demo.activeRequests.length, 1)
 })

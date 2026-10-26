@@ -4,9 +4,9 @@ import { DEFAULT_RESPONDER, hasPendingArrival, canRequestPersonnel, createPerson
 // v3 personnel requests are independent of historical v1/v2 staff assignments.
 // Previous storage remains untouched; nothing is sent to a server.
 const STORAGE_KEY = 'roadsafe:responders:v3'
-function read() {
+function read(storageKey) {
   try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY))
+    const stored = JSON.parse(localStorage.getItem(storageKey))
     if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {}
     return Object.fromEntries(Object.entries(stored).map(([id, value]) => [id, value && {
       ...value,
@@ -21,12 +21,12 @@ function read() {
   } catch { return {} }
 }
 
-export default function useResponderState(selectedStation) {
-  const [state, setState] = useState(read)
+export default function useResponderState(selectedStation, storageKey = STORAGE_KEY) {
+  const [state, setState] = useState(() => read(storageKey))
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)) }
+    try { localStorage.setItem(storageKey, JSON.stringify(state)) }
     catch { /* Requests remain usable in memory if storage is unavailable. */ }
-  }, [state])
+  }, [state, storageKey])
   // Recover station coordinates for requests saved before station snapshots existed.
   useEffect(() => {
     if (!selectedStation) return
