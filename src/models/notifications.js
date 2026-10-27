@@ -28,6 +28,13 @@ export function notificationStorageKey(accountId) {
   return `roadsafe:notifications:read:v1:${accountId}`
 }
 
+export function enforcerNotifications(accounts) {
+  return accounts.filter(account => account.requestedAccountType === 'Officer').map(account => ({
+    id: `enforcer-registration:${account.id}`, accountId: account.id,
+    title: 'Enforcer account created', message: `${account.name} registered as an enforcer. Open Account Management to review the account.`,
+  }))
+}
+
 export function loadReadNotifications(storage, key) {
   try {
     const value = JSON.parse(storage?.getItem(key) ?? '[]')

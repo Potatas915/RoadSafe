@@ -7,7 +7,25 @@ import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { reportNotifications, notificationStorageKey, loadReadNotifications } from '../src/models/notifications.js'
+import { reportNotifications, enforcerNotifications, notificationStorageKey, loadReadNotifications } from '../src/models/notifications.js'
+import { loadEnforcerNotifications } from '../src/backend/accounts.js'
+
+test('enforcer registrations produce stable account notifications, excluding public users', async () => {
+  const applicant = { id: 'applicant', name: 'Jane', requestedAccountType: 'Officer', role: 'Public', enabled: true, responderType: 'police', unit: 'Unit', version: 1, username: null }
+  const items = enforcerNotifications([applicant, { ...applicant, id: 'public', requestedAccountType: 'Public' }])
+  assert.equal(items.length, 1)
+  assert.equal(items[0].accountId, applicant.id)
+  assert.match(items[0].message, /Jane/)
+  assert.deepEqual(enforcerNotifications([{ ...applicant, role: 'Officer' }]), items)
+  const calls = []
+  const client = { async rpc(name, args) {
+    calls.push([name, args.p_offset])
+    return { data: { data: args.p_offset === 0 ? Array.from({ length: 50 }, (_, id) => ({ ...applicant, id: `account-${id}` })) : [{ ...applicant, id: 'last' }], total: 51 } }
+  } }
+  assert.equal((await loadEnforcerNotifications(client)).length, 51)
+  assert.deepEqual(calls, [['list_accounts', 0], ['list_accounts', 50]])
+  await assert.rejects(loadEnforcerNotifications({ rpc: async () => ({ error: new Error('Denied') }) }), /Denied/)
+})
 
 const submittedAt = '2026-10-18T00:00:00Z'
 const report = { id: 'report-1', submittedAt, events: [
@@ -62,6 +80,20 @@ const module = { exports: {} }
 const nativeRequire = createRequire(filename)
 vm.runInNewContext(code, { module, exports: module.exports, require: (name) => name === '../models/report.js' ? { formatDateTime: (value) => value } : nativeRequire(name) }, { filename })
 const { default: NotificationBell, NotificationList } = module.exports
+
+test('registration notification marks read and opens the account without inventing a timestamp', () => {
+  const item = enforcerNotifications([{ id: 'applicant', name: '<Jane>', requestedAccountType: 'Officer' }])[0]
+  let read, opened
+  const tree = NotificationList({ notifications: [item], onRead: ids => { read = ids }, onOpenReport: (reportId, accountId) => { opened = { reportId, accountId } } })
+  const entry = tree.props.children[0]
+  entry.props.children[0].props.onClick()
+  assert.equal(read[0], item.id)
+  assert.equal(opened.reportId, undefined)
+  assert.equal(opened.accountId, 'applicant')
+  const html = renderToStaticMarkup(tree)
+  assert.match(html, /&lt;Jane&gt;/)
+  assert.doesNotMatch(html, /<time|Invalid Date/)
+})
 
 test('bell announces unread notifications; list exposes timestamps, read controls and empty state', () => {
   const items = reportNotifications([report]).map((item, index) => ({ ...item, read: index !== 0 }))

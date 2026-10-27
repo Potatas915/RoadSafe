@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { formatDateTime } from '../models/report.js'
 
 export function NotificationList({ notifications, onRead, onOpenReport }) {
-  if (!notifications.length) return <p className="p-4 text-xs text-slate-400">No notifications yet. Confirmed submissions and status changes will appear here.</p>
+  if (!notifications.length) return <p className="p-4 text-xs text-slate-400">No notifications yet. Report activity and enforcer registrations will appear here.</p>
   return <ul className="divide-y divide-darkBorder">
     {notifications.map((item) => <li key={item.id} className={`p-3 space-y-2 ${item.read ? '' : 'bg-orange-500/[.08]'}`}>
-      <button type="button" className="block w-full text-left space-y-1 rounded focus-visible:outline focus-visible:outline-orange-500" onClick={() => { onRead([item.id]); onOpenReport(item.reportId) }}>
+      <button type="button" className="block w-full text-left space-y-1 rounded focus-visible:outline focus-visible:outline-orange-500" onClick={() => { onRead([item.id]); onOpenReport(item.reportId, item.accountId) }}>
         <span className="block text-xs font-semibold text-strong">{!item.read && <span className="text-orange-400">Unread · </span>}{item.title}</span>
         <span className="block text-xs text-slate-300 [overflow-wrap:anywhere]">{item.message}</span>
-        <time className="block text-[11px] text-slate-400" dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time>
+        {item.createdAt && <time className="block text-[11px] text-slate-400" dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time>}
       </button>
       {!item.read && <button type="button" onClick={() => onRead([item.id])} className="text-xs text-orange-400 hover:underline">Mark as read</button>}
     </li>)}
@@ -40,11 +40,11 @@ export default function NotificationBell({ notifications = [], unreadCount = 0, 
           <button type="button" disabled={!unreadCount} onClick={() => onRead(notifications.map((item) => item.id))} className="text-xs text-orange-400 disabled:opacity-40">Mark all as read</button>
           <button type="button" aria-label="Close notifications" onClick={() => { setOpen(false); trigger.current?.focus() }} className="text-slate-400 hover:text-strong">×</button>
         </div>
-        <p className="text-[11px] text-slate-400">{live ? 'Report activity · refreshes every 15 seconds' : 'Demo activity · changes last for this session'}. Read state is saved in this browser.</p>
+        <p className="text-[11px] text-slate-400">{live ? 'Account and report activity · refreshes every 15 seconds' : 'Demo activity · changes last for this session'}. Read state is saved in this browser.</p>
         {storageWarning && <p role="alert" className="text-xs text-orange-300">{storageWarning}</p>}
       </div>
       <div className="max-h-[min(60vh,480px)] overflow-y-auto">
-        <NotificationList notifications={notifications} onRead={onRead} onOpenReport={(id) => { setOpen(false); onOpenReport(id) }} />
+        <NotificationList notifications={notifications} onRead={onRead} onOpenReport={(id, accountId) => { setOpen(false); onOpenReport(id, accountId) }} />
       </div>
     </section>}
   </div>

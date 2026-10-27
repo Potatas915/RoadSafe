@@ -1,4 +1,18 @@
+import { enforcerNotifications } from '../models/notifications.js'
 const roles = ['Public', 'Officer', 'Admin']
+
+export async function loadEnforcerNotifications(client) {
+  const accounts = new Map()
+  let offset = 0
+  while (true) {
+    const page = await loadAccounts(client, '', offset)
+    for (const account of page.data) accounts.set(account.id, account)
+    offset += page.data.length
+    if (offset >= page.total) break
+    if (!page.data.length) throw new Error('Account list changed. Retry notification refresh.')
+  }
+  return enforcerNotifications([...accounts.values()])
+}
 export function parseAccounts(page) {
   if (!Array.isArray(page?.data) || !Number.isInteger(page.total) || page.total < page.data.length) throw new Error('Invalid account response.')
   const ids = new Set()

@@ -63,6 +63,7 @@ function ManagerDashboard({ signedInUser }) {
   const [view, setView] = useState('map-view')
   const [searchLocation, setSearchLocation] = useState(null)
   const [activeReport, setActiveReport] = useState(null)
+  const [notificationAccountId, setNotificationAccountId] = useState('')
   const [demoPreview, setDemoPreview] = useState(true)
   const [demoResponse, setDemoResponse] = useState(() => structuredClone(reportsResponse))
   const [response, setResponse] = useState(live ? { meta: { schemaVersion: 1 }, data: [], included: { users: [] } } : reportsResponse)
@@ -107,7 +108,7 @@ function ManagerDashboard({ signedInUser }) {
   const users = response.included.users
   const previewing = demoPreview && ['map-view', 'dashboard-view', 'reports-view', 'officers-view'].includes(view)
   const displayed = previewing ? demoResponse : response
-  const { notifications, unreadCount, markRead, storageWarning } = useNotifications(reports, live ? signedInUser.id : 'demo')
+  const { notifications, unreadCount, markRead, storageWarning } = useNotifications(reports, live ? signedInUser.id : 'demo', live ? backend : null)
   const currentUser = live ? users.find((user) => user.id === signedInUser.id) : users.find((user) => user.role === ROLES.ADMIN) ?? null
   const selectedReport = displayed.data.find((report) => report.id === activeReport) ?? null
   function viewReportOnMap(report) {
@@ -168,7 +169,7 @@ function ManagerDashboard({ signedInUser }) {
     <CategoryContext.Provider value={categories}><div data-tactical={view === 'map-view'} className="roadsafe-shell bg-darkBg text-slate-100 font-sans antialiased h-screen flex overflow-hidden">
       <Sidebar view={view} onChange={(nextView) => { if (nextView !== view) setActiveReport(null); setView(nextView) }} pendingCount={reportSummary(reports).pending} currentUser={currentUser} live={live} />
       <div className="roadsafe-stage flex-1 flex flex-col relative overflow-hidden bg-darkBg min-w-0">
-        <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={live ? () => backend.auth.signOut() : () => setSignedOut(true)} live={live} notifications={notifications} unreadCount={unreadCount} onReadNotifications={markRead} notificationStorageWarning={storageWarning} onOpenNotificationReport={(id) => { setDemoPreview(false); setView('reports-view'); setActiveReport(id) }} />
+        <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={live ? () => backend.auth.signOut() : () => setSignedOut(true)} live={live} notifications={notifications} unreadCount={unreadCount} onReadNotifications={markRead} notificationStorageWarning={storageWarning} onOpenNotificationReport={(id, accountId) => { if (accountId) { setNotificationAccountId(accountId); setView('accounts-view'); return }; setDemoPreview(false); setView('reports-view'); setActiveReport(id) }} />
         <p className="sr-only" role="status">{source}</p>
         {categoryError && view !== 'settings-view' && <p role="alert" className="px-6 py-2 text-amber-300 text-xs">{categoryError}</p>}
         {view === 'settings-view' && <SettingsView categories={categories} onSave={updateCategory} error={categoryError} onRefresh={refreshCategories} live={live} />}
@@ -188,7 +189,7 @@ function ManagerDashboard({ signedInUser }) {
         {view === 'dashboard-view' && <DashboardView reports={displayed.data} onOpenReport={setActiveReport} />}
         {view === 'reports-view' && <ReportsView reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} selectedReportId={activeReport} detailPanel={selectedReport ? <ReportModal embedded key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onViewOnMap={viewReportOnMap} onClose={() => setActiveReport(null)} /> : null} />}
         {view === 'officers-view' && <OfficersView reports={displayed.data} users={live ? users : []} onOpenReport={setActiveReport} />}
-        {view === 'accounts-view' && live && <AccountsView client={backend} currentUserId={signedInUser?.id} />}
+        {view === 'accounts-view' && live && <AccountsView key={notificationAccountId} client={backend} currentUserId={signedInUser?.id} initialSearch={notificationAccountId} />}
         {view === 'analytics-view' && <AnalyticsView reports={reports} users={users} source={live ? 'Shared reports' : 'Demo / session preview'} />}
       </div>
       {selectedReport && view === 'dashboard-view' && <DashboardReportSummary key={selectedReport.id} report={selectedReport} onClose={() => setActiveReport(null)} onManage={() => setView('reports-view')} />}

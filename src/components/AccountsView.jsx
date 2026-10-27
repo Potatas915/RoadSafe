@@ -3,10 +3,10 @@ import AccountEditor from './AccountEditor.jsx'
 export { default as AccountEditor } from './AccountEditor.jsx'
 import { loadAccounts, loadAccountStations, saveAccount } from '../backend/accounts.js'
 
-export default function AccountsView({ client, currentUserId }) {
+export default function AccountsView({ client, currentUserId, initialSearch = '' }) {
   const [page, setPage] = useState({ data: [], total: 0 })
-  const [query, setQuery] = useState('')
-  const [search, setSearch] = useState('')
+  const [query, setQuery] = useState(initialSearch)
+  const [search, setSearch] = useState(initialSearch)
   const [offset, setOffset] = useState(0)
   const [selected, setSelected] = useState(null)
   const [selectedReload, setSelectedReload] = useState(0)
@@ -63,15 +63,15 @@ export default function AccountsView({ client, currentUserId }) {
     {error && <p role="alert" className="text-red-300">{error} Refresh before retrying a stale edit.</p>}
     {message && <p role="status" className="text-emerald-300">{message}</p>}
     {loading && <p role="status">Loading accounts…</p>}
-    <AccountGroups accounts={page.data} onEdit={edit} disabled={saving || loading} />
+    <AccountGroups accounts={page.data} onEdit={edit} disabled={saving || loading} initialTab={initialSearch ? 1 : 0} />
     {!loading && !page.data.length && <p>No matching accounts.</p>}
     <div className="flex gap-3 text-sm items-center"><button disabled={offset === 0 || loading || saving} onClick={() => { setSelected(null); setOffset(offset - 50) }}>Previous</button><span>{page.total ? `${offset + 1}–${offset + page.data.length} of ${page.total}` : '0 accounts'}</span><button disabled={offset + 50 >= page.total || loading || saving} onClick={() => { setSelected(null); setOffset(offset + 50) }}>Next</button></div>
     {selected && <AccountEditor key={`${selected.id}:${selected.version}:${selectedReload}`} account={selected} currentUserId={currentUserId} onSave={save} onCancel={() => setSelected(null)} saving={saving} error={editError} stale={stale} onReload={reloadSelected} loadStations={stationLoader} returnFocusRef={returnFocusRef} />}
   </main>
 }
 
-export function AccountGroups({ accounts, onEdit, disabled }) {
-  const [activeTab, setActiveTab] = useState(0)
+export function AccountGroups({ accounts, onEdit, disabled, initialTab = 0 }) {
+  const [activeTab, setActiveTab] = useState(initialTab)
   const groups = [
     { title: 'Users', accounts: accounts.filter(account => account.role === 'Public' && account.requestedAccountType !== 'Officer') },
     { title: 'Enforcers', accounts: accounts.filter(account => account.role === 'Officer' || (account.role === 'Public' && account.requestedAccountType === 'Officer')) },
