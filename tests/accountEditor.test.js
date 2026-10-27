@@ -101,10 +101,35 @@ test('self editing locks role and access, and errors retain the changed name', (
   const render = harness({ account: { ...account, role: 'Admin' }, currentUserId: 'public', error: 'Active cases prevent transfer' })
   find(render(), n => n.props?.['aria-label'] === 'Account name').props.onChange({ target: { value: 'Changed name' } })
   const tree = render()
-  assert.equal(find(tree, n => n.props?.['aria-label'] === 'Account role').props.disabled, true)
+  assert.equal(find(tree, n => n.props?.['aria-label'] === 'Account role').props.readOnly, true)
   assert.equal(find(tree, n => n.props?.['aria-label'] === 'Account active').props.disabled, true)
   assert.equal(find(tree, n => n.props?.['aria-label'] === 'Account name').props.value, 'Changed name')
   assert.match(renderToStaticMarkup(tree), /Active cases prevent transfer/)
+})
+
+test('account permissions are fixed and ordinary saves preserve the account role', () => {
+  for (const [role, requestedAccountType, label] of [['Public', undefined, 'Public user'], ['Public', 'Officer', 'Enforcer'], ['Officer', 'Officer', 'Enforcer'], ['Admin', undefined, 'Administrator']]) {
+    let saved
+    const render = harness({ account: { ...account, role, requestedAccountType }, onSave: patch => { saved = patch } })
+    const tree = render()
+    const type = find(tree, n => n.props?.['aria-label'] === 'Account role')
+    assert.equal(type.type, 'input')
+    assert.equal(type.props.readOnly, true)
+    assert.equal(type.props.value, label)
+    assert.equal(type.props.onChange, undefined)
+    const responder = find(tree, n => n.props?.['aria-label'] === 'Account responder type')
+    if (requestedAccountType === 'Officer' || role === 'Officer') {
+      assert.equal(responder.type, 'input')
+      assert.equal(responder.props.value, 'Police')
+      assert.equal(responder.props.readOnly, true)
+      assert.equal(responder.props.onChange, undefined)
+    } else assert.equal(responder, undefined)
+    find(tree, n => n.props?.['aria-label'] === 'Account name').props.onChange({ target: { value: 'Updated name' } })
+    find(render(), n => n.props?.['aria-label'] === 'Account change reason').props.onChange({ target: { value: 'Correct name' } })
+    find(render(), n => n.type === 'form').props.onSubmit({ preventDefault() {} })
+    assert.equal(saved.role, role)
+    assert.equal(saved.responderType, 'police')
+  }
 })
 
 test('approved legacy police Officer without station may save unrelated profile changes', () => {

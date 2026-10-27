@@ -116,7 +116,7 @@ test('actual Officer review modal offers verification without Admin-only control
 })
 test('account editor disables own role/access, keeps required reasons, and table escapes profile text', () => {
   const html = renderToStaticMarkup(React.createElement(AccountEditor, { account: { ...account,role:'Admin' },currentUserId:account.id }))
-  assert.match(html, /aria-label="Account role" disabled=""/)
+  assert.match(html, /aria-label="Account role" readonly=""/)
   assert.match(html, /aria-label="Account active"[^>]*disabled=""/)
   assert.match(html, /aria-label="Account change reason" required=""/)
   assert.ok(!html.includes('type="password"'))
