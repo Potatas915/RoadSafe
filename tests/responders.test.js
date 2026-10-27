@@ -99,7 +99,7 @@ test('completion frees the station for another drag while keeping the completed 
   assert.equal(hasPendingArrival(completed), false)
   const html = render({ data: completed })
   assert.ok(html.includes(request.id))
-  assert.ok(html.includes('Route complete'))
+  assert.ok(html.includes('Scene resolved and report closed'))
   assert.ok(html.includes('officer released'))
   assert.ok(!html.includes('Station available'))
   assert.ok(html.includes('Cancel request'))

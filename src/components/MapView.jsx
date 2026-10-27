@@ -384,7 +384,7 @@ export default function MapView({ searchLocation, reportRecords, users = [], onO
     } else {
       const report = mapRecords.find(record => record.id === request.reportId);
       if (hasActiveOfficer(report)) await onDemoSave(report.id, {
-        status: report.status === 'Assigned' ? 'Verified' : 'Under Review', assignedOfficerId: null,
+        status: completed ? 'Resolved / Closed' : report.status === 'Assigned' ? 'Verified' : 'Under Review', assignedOfficerId: null,
         officialRemarks: [report.officialRemarks, completed ? 'Police station scene completed; officer unassigned.' : 'Police station request cancelled; officer unassigned.'].filter(Boolean).join('\n'), rejectionReason: null,
       });
     }

@@ -89,12 +89,12 @@ test('map cancellation targets the request accident, waits for unassignment, and
   }
 })
 
-test('completing a scene releases the request officer before retiring its route', async () => {
+test('completing a scene closes the saved report and releases its officer before retiring its route', async () => {
   const source = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
   const body = source.match(/async function cancelRequest\([^)]*\) \{([\s\S]*?)\n  \}/)[1]
-  for (const outcome of ['success', 'failure', 'refresh-failure']) {
+  for (const status of ['Assigned', 'In Progress']) for (const outcome of ['success', 'failure', 'refresh-failure']) {
     const calls = []
-    const report = { id: 'request-report', status: 'In Progress', assignedOfficerId: 'officer', version: 7 }
+    const report = { id: 'request-report', status, assignedOfficerId: 'officer', version: 7 }
     const complete = vm.runInNewContext('(async () => {' + body + '})', {
       completed: true, selectedStation: { id: 'station' }, selectedRecord: { id: 'other-report' },
       responders: { get: () => ({ request: { reportId: report.id } }), release: () => calls.push('release'), setStatus: (id, status) => { assert.equal(id, 'station'); assert.equal(status, 'Completed'); calls.push('complete') } },
@@ -102,7 +102,7 @@ test('completing a scene releases the request officer before retiring its route'
       cancelStationEnforcer: async (client, target, completed) => {
         assert.equal(target, report); assert.equal(completed, true)
         await cancelStationEnforcer({ rpc: async (name, args) => {
-          assert.equal(args.p_officer, null); assert.equal(args.p_status, 'Under Review'); assert.equal(args.p_version, 7)
+          assert.equal(args.p_officer, null); assert.equal(args.p_status, 'Resolved / Closed'); assert.equal(args.p_version, 7)
           assert.match(args.p_remarks, /scene completed/i); assert.doesNotMatch(args.p_remarks, /cancelled/i)
           calls.push('save')
           return outcome === 'failure' ? { error: Error('Stale report') } : {}
