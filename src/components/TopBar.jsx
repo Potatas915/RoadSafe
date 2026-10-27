@@ -12,7 +12,7 @@ export default function TopBar({ live = false, notifications, unreadCount, onRea
           <i className="fa-solid fa-location-dot text-orange-500"></i> Region: Central Luzon / Bulacan
         </div>
         <span className="px-2.5 py-0.5 rounded-full text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> {live ? 'Shared records' : 'Web prototype'}
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> {live ? 'Connected' : 'Web prototype'}
         </span>
       </div>
 

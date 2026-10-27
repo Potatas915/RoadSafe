@@ -19,13 +19,13 @@ export async function assignStationEnforcer(client, report, stationId, officerId
   if (!report || report.status !== 'Verified' || report.assignedOfficerId || report.isDuplicate) throw new Error('Select an unassigned, verified shared report.')
   return rpc(client, 'assign_station_enforcer', { p_id: report.id, p_officer: officerId, p_station: stationId, p_version: report.version })
 }
-export async function cancelStationEnforcer(client, report) {
+export async function cancelStationEnforcer(client, report, completed = false) {
   if (!report) throw new Error('Refresh shared reports before cancelling this request.')
   if (!report.assignedOfficerId || !['Assigned', 'In Progress'].includes(report.status)) return
   await saveReportReview(client, report, {
     status: report.status === 'Assigned' ? 'Verified' : 'Under Review',
     assignedOfficerId: null,
-    officialRemarks: [report.officialRemarks, 'Police station request cancelled; officer unassigned.'].filter(Boolean).join('\n'),
+    officialRemarks: [report.officialRemarks, completed ? 'Police station scene completed; officer unassigned.' : 'Police station request cancelled; officer unassigned.'].filter(Boolean).join('\n'),
     rejectionReason: null,
   })
 }

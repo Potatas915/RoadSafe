@@ -352,7 +352,7 @@ export default function MapView({ searchLocation, reportRecords, users = [], onO
   const [radiusKm, setRadiusKm] = useState(2.5);
   const [selectedStation, setSelectedStation] = useState(null);
   const demoResponders = useResponderState(!enforcerClient ? selectedStation : null);
-  const sharedResponders = useResponderState(enforcerClient ? selectedStation : null, 'roadsafe:responders:shared:v3');
+  const sharedResponders = useResponderState(enforcerClient ? selectedStation : null, 'roadsafe:responders:reports:v1');
   const responders = enforcerClient ? sharedResponders : demoResponders;
   const [routes, setRoutes] = useState({});
   const routeCache = useRef(new Map());
@@ -374,24 +374,25 @@ export default function MapView({ searchLocation, reportRecords, users = [], onO
       coordinates: [report.location.coordinates.longitude, report.location.coordinates.latitude],
     }, { personnel: 1, note: '' }, station);
   }
-  async function cancelRequest() {
+  async function cancelRequest(completed = false) {
     const stationId = selectedStation.id;
     const request = responders.get(stationId).request;
     if (!request) return;
     if (enforcerClient) {
       const report = mapRecords.find(record => record.id === request.reportId);
-      await cancelStationEnforcer(enforcerClient, report);
+      await cancelStationEnforcer(enforcerClient, report, completed);
     } else {
       const report = mapRecords.find(record => record.id === request.reportId);
       if (hasActiveOfficer(report)) await onDemoSave(report.id, {
         status: report.status === 'Assigned' ? 'Verified' : 'Under Review', assignedOfficerId: null,
-        officialRemarks: [report.officialRemarks, 'Police station request cancelled; officer unassigned.'].filter(Boolean).join('\n'), rejectionReason: null,
+        officialRemarks: [report.officialRemarks, completed ? 'Police station scene completed; officer unassigned.' : 'Police station request cancelled; officer unassigned.'].filter(Boolean).join('\n'), rejectionReason: null,
       });
     }
-    responders.release(stationId);
+    if (completed) responders.setStatus(stationId, 'Completed');
+    else responders.release(stationId);
     if (enforcerClient) {
       try { await onAssigned?.(); }
-      catch { throw new Error('Request cancelled and officer released. Shared reports could not refresh; refresh before assigning again.'); }
+      catch { throw new Error(`${completed ? 'Scene completed' : 'Request cancelled'} and officer released. Reports could not refresh; refresh before assigning again.`); }
     }
   }
   useEffect(() => {
@@ -505,7 +506,7 @@ export default function MapView({ searchLocation, reportRecords, users = [], onO
   );
 
   const [medicalRecommendations, setMedicalRecommendations] = useState({});
-  const sourceLabel = enforcerClient ? 'Shared reports · saved to shared backend' : 'Demo reports · session only';
+  const sourceLabel = enforcerClient ? 'Reports · saved to backend' : 'Report connection unavailable';
   const recommendationKey = `${Boolean(enforcerClient)}:${selectedRecord?.id}`;
   const currentMedicalContext = useRef(recommendationKey);
   currentMedicalContext.current = recommendationKey;
@@ -1268,7 +1269,7 @@ export default function MapView({ searchLocation, reportRecords, users = [], onO
               routeInfo={routeInfo}
               scene={scene}
               data={!stationRequest ? DEFAULT_RESPONDER : responders.get(selectedStation.id)}
-              onStatus={(value) => responders.setStatus(selectedStation.id, value)}
+              onStatus={() => cancelRequest(true)}
               onRequest={(details) => !enforcerClient && scene && responders.requestAssistance(selectedStation.id, scene, details, selectedStation)}
               onRelease={cancelRequest}
               onClose={() => setSelectedStation(null)}

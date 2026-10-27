@@ -100,7 +100,7 @@ test('completion frees the station for another drag while keeping the completed 
   const html = render({ data: completed })
   assert.ok(html.includes(request.id))
   assert.ok(html.includes('Route complete'))
-  assert.ok(html.includes('case assignment is unchanged'))
+  assert.ok(html.includes('officer released'))
   assert.ok(!html.includes('Station available'))
   assert.ok(html.includes('Cancel request'))
   for (const removed of ['New request', 'Complete scene', 'responder-progress']) assert.ok(!html.includes(removed))
@@ -137,7 +137,7 @@ test('shared station card waits for officer assignment instead of offering a sep
   assert.ok(!html.includes('Complete scene'))
 })
 
-test('cancel request disables repeated actions and shows server failures without discarding progress', async () => {
+for (const action of ['Cancel request', 'Complete scene']) test(`${action} disables repeated actions and shows server failures without discarding progress`, async () => {
   const values = []
   let cursor = 0, rejectSave
   const module = { exports: {} }, require = createRequire(filename)
@@ -150,7 +150,8 @@ test('cancel request disables repeated actions and shows server failures without
     } } : require(name),
   })
   const request = createPersonnelRequest(scene, { personnel: 1 })
-  const props = { station, scene, assignmentRequired: true, enforcerPanel: React.createElement('p', null, 'Roster'), data: { status: 'Responding', request }, onRelease: () => new Promise((_resolve, reject) => { rejectSave = reject }) }
+  const save = () => new Promise((_resolve, reject) => { rejectSave = reject })
+  const props = { station, scene, assignmentRequired: true, enforcerPanel: React.createElement('p', null, 'Roster'), data: { status: 'Responding', request }, onRelease: save, onStatus: save }
   const render = () => { cursor = 0; return module.exports.default(props) }
   function find(node, predicate) {
     if (!React.isValidElement(node)) return null
@@ -162,9 +163,9 @@ test('cancel request disables repeated actions and shows server failures without
     return null
   }
   let tree = render()
-  const pending = find(tree, node => node.type === 'button' && node.props.children === 'Cancel request').props.onClick()
+  const pending = find(tree, node => node.type === 'button' && node.props.children === action).props.onClick()
   tree = render()
-  assert.equal(find(tree, node => node.type === 'button' && node.props.children === 'Cancelling…').props.disabled, true)
+  assert.equal(find(tree, node => node.type === 'button' && node.props.children === 'Saving…').props.disabled, true)
   assert.equal(find(tree, node => node.type === 'button' && node.props.children === 'Complete scene').props.disabled, true)
   rejectSave(Error('This report changed. Refresh it before saving.'))
   await pending

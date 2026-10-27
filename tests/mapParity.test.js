@@ -90,12 +90,12 @@ test('refreshing the demo roster never waits for the shared backend', () => {
 })
 
 test('demo cancellation releases the requested case only after its own save succeeds', async () => {
-  const body = source('components/MapView.jsx').match(/async function cancelRequest\(\) \{([\s\S]*?)\n  \}/)[1]
+  const body = source('components/MapView.jsx').match(/async function cancelRequest\([^)]*\) \{([\s\S]*?)\n  \}/)[1]
   for (const status of ['Assigned', 'In Progress']) for (const denied of [false, true]) {
     const report = { id: 'demo-case', status, assignedOfficerId: 'demo-officer', officialRemarks: 'Keep remarks' }
     const calls = []
     const cancel = vm.runInNewContext('(async () => {' + body + '})', {
-      selectedStation: { id: 'station' }, mapRecords: [report], enforcerClient: null, hasActiveOfficer,
+      completed: false, selectedStation: { id: 'station' }, mapRecords: [report], enforcerClient: null, hasActiveOfficer,
       responders: { get: () => ({ request: { reportId: report.id } }), release: () => calls.push('release') },
       cancelStationEnforcer: () => assert.fail('Demo called shared cancellation'),
       onDemoSave: async (id, patch) => {
@@ -143,11 +143,11 @@ test('medical drop selects without saving and recommendations are isolated by so
   assert.match(map, /sourceLabel=/)
 })
 
-test('map routes in both sources require an active assignment', () => {
+test('operational map uses only backend assignment and report writes', () => {
   const map = source('components/MapView.jsx')
   assert.doesNotMatch(map, /!enforcerClient \|\| hasActiveOfficer/)
   const app = source('App.jsx')
-  assert.match(app, /onDemoSave=\{/)
-  assert.match(app, /onDemoAssign=\{/)
+  assert.doesNotMatch(app, /onDemoSave=\{|onDemoAssign=\{/)
+  assert.match(app, /enforcerClient=\{live \? backend : null\}/)
   assert.doesNotMatch(app, /enforcerRosterClient=\{live \? backend : null\}/)
 })

@@ -12,11 +12,9 @@ import ReportsView from './components/ReportsView.jsx'
 import OfficersView from './components/OfficersView.jsx'
 import AnalyticsView from './components/AnalyticsView.jsx'
 import ReportModal from './components/ReportModal.jsx'
-import { reportsResponse } from './data/reports.js'
-import { parseReportsResponse, reportSummary, ROLES, updateReport } from './models/report.js'
+import { reportSummary, ROLES } from './models/report.js'
 import { backend } from './backend/client.js'
-import { loadReportFeed, saveReportReview, saveReportDuplicate, saveReportCorrection } from './backend/reports.js'
-import { applyDuplicateReview } from './models/reportDuplicates.js'
+import { loadReportFeed, saveReportReview, saveReportDuplicate, saveReportCorrection, openAdminReview, isStaleReview } from './backend/reports.js'
 import ManagerAuth from './backend/ManagerAuth.jsx'
 import useNotifications from './hooks/useNotifications.js'
 import { ACCIDENT_CATEGORIES } from './models/report.js'
@@ -24,18 +22,15 @@ import { loadCategories, saveCategory } from './backend/categories.js'
 import { CategoryContext } from './components/CategoryContext.js'
 import SettingsView from './components/SettingsView.jsx'
 import AuthLanding from './components/AuthLanding.jsx'
-import DemoEntryPanel from './components/DemoEntryPanel.jsx'
-import { demoAssignmentPatch } from './models/demoEnforcers.js'
 
 export default function App() {
   return backend
     ? <ManagerAuth>{(user) => user.appRole === ROLES.OFFICER ? <OfficerDashboard key={`${user.id}:Officer`} signedInUser={user} /> : <ManagerDashboard key={`${user.id}:Admin`} signedInUser={user} />}</ManagerAuth>
-    : <ManagerDashboard />
+    : <AuthLanding status="Configuration required"><p className="text-sm text-slate-300">Connect RoadSafe to its backend to sign in and load reports.</p></AuthLanding>
 }
 
 function ManagerDashboard({ signedInUser }) {
   const live = Boolean(signedInUser)
-  const [signedOut, setSignedOut] = useState(false)
   const [categories, setCategories] = useState(ACCIDENT_CATEGORIES)
   const [categoryError, setCategoryError] = useState('')
   const refreshCategories = useCallback(async () => {
@@ -63,15 +58,15 @@ function ManagerDashboard({ signedInUser }) {
   const [view, setView] = useState('map-view')
   const [searchLocation, setSearchLocation] = useState(null)
   const [activeReport, setActiveReport] = useState(null)
+  const [openingReview, setOpeningReview] = useState(false)
+  const [reviewOpenError, setReviewOpenError] = useState('')
   const [notificationAccountId, setNotificationAccountId] = useState('')
-  const [demoPreview, setDemoPreview] = useState(true)
-  const [demoResponse, setDemoResponse] = useState(() => structuredClone(reportsResponse))
-  const [response, setResponse] = useState(live ? { meta: { schemaVersion: 1 }, data: [], included: { users: [] } } : reportsResponse)
-  const [source, setSource] = useState(live ? 'Loading shared reports…' : 'Demo data — changes last for this session')
+  const [response, setResponse] = useState({ meta: { schemaVersion: 1 }, data: [], included: { users: [] } })
+  const [source, setSource] = useState('Loading reports…')
   const refresh = useCallback(async () => {
     const next = await loadReportFeed(backend)
     setResponse(next)
-    setSource('Connected to shared reports · refreshes every 15 seconds')
+    setSource('Reports · refreshes every 15 seconds')
   }, [])
   useEffect(() => {
     if (!live) return
@@ -82,7 +77,7 @@ function ManagerDashboard({ signedInUser }) {
       inFlight = true
       try {
         const next = await loadReportFeed(backend)
-        if (!cancelled) { setResponse(next); setSource('Connected to shared reports · refreshes every 15 seconds') }
+        if (!cancelled) { setResponse(next); setSource('Reports · refreshes every 15 seconds') }
       } catch (error) {
         if (!cancelled) setSource(`Could not refresh reports: ${error.message}. Last loaded data may be out of date.`)
       } finally { inFlight = false }
@@ -92,53 +87,37 @@ function ManagerDashboard({ signedInUser }) {
     window.addEventListener('focus', reload)
     return () => { cancelled = true; clearInterval(timer); window.removeEventListener('focus', reload) }
   }, [live])
-  useEffect(() => {
-    if (live) return
-    const url = import.meta.env.VITE_REPORTS_API_URL
-    if (!url) return
-    const controller = new AbortController()
-    setSource('Loading reports — showing demo data')
-    fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } })
-      .then((result) => { if (!result.ok) throw new Error('Reports request failed'); return result.json() })
-      .then((payload) => { const next = parseReportsResponse(payload); if (!controller.signal.aborted) { setResponse(next); setSource('API data — edits are session previews only') } })
-      .catch((error) => { if (!controller.signal.aborted) setSource(`Demo data — API unavailable or incompatible: ${error.message}`) })
-    return () => controller.abort()
-  }, [live])
   const reports = response.data
   const users = response.included.users
-  const previewing = demoPreview && ['map-view', 'dashboard-view', 'reports-view', 'officers-view'].includes(view)
-  const displayed = previewing ? demoResponse : response
-  const { notifications, unreadCount, markRead, storageWarning } = useNotifications(reports, live ? signedInUser.id : 'demo', live ? backend : null)
-  const currentUser = live ? users.find((user) => user.id === signedInUser.id) : users.find((user) => user.role === ROLES.ADMIN) ?? null
+
+  const displayed = response
+  const { notifications, unreadCount, markRead, storageWarning } = useNotifications(reports, signedInUser.id, live ? backend : null)
+  const currentUser = users.find((user) => user.id === signedInUser.id) ?? null
   const selectedReport = displayed.data.find((report) => report.id === activeReport) ?? null
   function viewReportOnMap(report) {
     const { longitude, latitude } = report.location.coordinates
-    setDemoPreview(previewing)
+
     setActiveReport(null)
     setSearchLocation({ reportId: report.id, coordinates: [longitude, latitude] })
     setView('map-view')
   }
-  async function saveReport(id, patch) {
-    const actor = previewing ? demoResponse.included.users.find((user) => user.role === ROLES.ADMIN) : currentUser
-    if (!actor) throw new Error('Administrator profile is unavailable. Refresh and try again.')
-    const current = displayed.data.find((report) => report.id === id)
+  async function openReview(id) {
+    if (openingReview) return
+    const report = displayed.data.find(item => item.id === id)
+    if (!report) return
+    setOpeningReview(true); setReviewOpenError('')
+    try { await openAdminReview({ client: backend, report, live: live, actorRole: signedInUser?.appRole, refresh, open: setActiveReport }) }
+    catch (error) { setReviewOpenError(`Could not open review: ${error.message}`) }
+    finally { setOpeningReview(false) }
+  }
+  async function saveReport(id, patch, { keepOpen = false } = {}) {
+    if (!currentUser) throw new Error('Administrator profile is unavailable. Refresh and try again.')
+    const current = reports.find(report => report.id === id)
     if (!current) throw new Error('Report no longer exists.')
-    if (patch.status === 'Rejected' && displayed.data.some(r => r.duplicateOfReportId === id)) throw new Error('This original report has linked duplicates. Clear their flags before rejecting it.')
-    if (live && !previewing) {
-      await saveReportReview(backend, current, patch)
-      await refresh()
-    } else {
-      const updated = updateReport(current, patch, actor.id)
-      if (updated.status !== current.status) {
-        updated.events = [...(current.events ?? []), { id: crypto.randomUUID(), type: 'review_updated',
-          fromStatus: current.status, status: updated.status, createdAt: new Date().toISOString() }]
-      }
-      const next = { ...displayed, data: displayed.data.map((report) => report.id === id ? updated : report) }
-      parseReportsResponse(next)
-      if (previewing) setDemoResponse(next)
-      else setResponse(next)
-    }
-    setActiveReport(null)
+    try { await saveReportReview(backend, current, patch) }
+    catch (error) { if (!(keepOpen && isStaleReview(error))) throw error }
+    await refresh()
+    if (!keepOpen) setActiveReport(null)
   }
   async function correctReport(id, values, reason) {
     const current = reports.find(report => report.id === id)
@@ -148,52 +127,31 @@ function ManagerDashboard({ signedInUser }) {
     setActiveReport(null)
   }
   async function saveDuplicate(id, originalId, reason) {
-    const actor = previewing ? demoResponse.included.users.find(user => user.role === ROLES.ADMIN) : currentUser
-    const current = displayed.data.find(report => report.id === id)
+    const current = reports.find(report => report.id === id)
     if (!current) throw new Error('Report no longer exists.')
-    const updated = applyDuplicateReview(displayed.data, id, originalId, reason, actor)
-    if (live && !previewing) {
-      await saveReportDuplicate(backend, current, originalId, reason)
-      await refresh()
-    } else {
-      const next = { ...displayed, data: displayed.data.map(report => report.id === id ? updated : report) }
-      parseReportsResponse(next)
-      if (previewing) setDemoResponse(next)
-      else setResponse(next)
-    }
+    await saveReportDuplicate(backend, current, originalId, reason)
+    await refresh()
     setActiveReport(null)
   }
-  // The web prototype has no real accounts: logging out shows the landing page with a way back in.
-  if (signedOut && !live) return <AuthLanding status="Web prototype"><DemoEntryPanel user={currentUser} onEnter={() => setSignedOut(false)} /></AuthLanding>
   return (
     <CategoryContext.Provider value={categories}><div data-tactical={view === 'map-view'} className="roadsafe-shell bg-darkBg text-slate-100 font-sans antialiased h-screen flex overflow-hidden">
       <Sidebar view={view} onChange={(nextView) => { if (nextView !== view) setActiveReport(null); setView(nextView) }} pendingCount={reportSummary(reports).pending} currentUser={currentUser} live={live} />
       <div className="roadsafe-stage flex-1 flex flex-col relative overflow-hidden bg-darkBg min-w-0">
-        <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={live ? () => backend.auth.signOut() : () => setSignedOut(true)} live={live} notifications={notifications} unreadCount={unreadCount} onReadNotifications={markRead} notificationStorageWarning={storageWarning} onOpenNotificationReport={(id, accountId) => { if (accountId) { setNotificationAccountId(accountId); setView('accounts-view'); return }; setDemoPreview(false); setView('reports-view'); setActiveReport(id) }} />
+        <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={() => backend.auth.signOut()} live={live} notifications={notifications} unreadCount={unreadCount} onReadNotifications={markRead} notificationStorageWarning={storageWarning} onOpenNotificationReport={(id, accountId) => { if (accountId) { setNotificationAccountId(accountId); setView('accounts-view'); return }; setView('reports-view'); setActiveReport(id) }} />
         <p className="sr-only" role="status">{source}</p>
         {categoryError && view !== 'settings-view' && <p role="alert" className="px-6 py-2 text-amber-300 text-xs">{categoryError}</p>}
         {view === 'settings-view' && <SettingsView categories={categories} onSave={updateCategory} error={categoryError} onRefresh={refreshCategories} live={live} />}
-        {['map-view', 'dashboard-view', 'reports-view', 'officers-view'].includes(view) && <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-6 py-2 border-b border-edge/[.08] bg-edge/[.03] text-xs">
-          <p className={previewing ? 'text-amber-700 dark:text-amber-300' : 'text-slate-400'}>{previewing ? `${displayed.data.length} fictional demo reports · preview changes last for this session` : source}</p>
-          <label className="flex items-center gap-2 text-slate-200">Report source
-            <select aria-label="Report source" value={demoPreview ? 'demo' : 'current'} onChange={(event) => { setActiveReport(null); setDemoPreview(event.target.value === 'demo') }} className="rounded-xl border border-edge/15 bg-edge/[.06] px-3 py-1.5 text-slate-200">
-              <option value="demo">Demo reports (49)</option><option value="current">{live ? 'Shared reports' : 'Current session reports'}</option>
-            </select>
-          </label>
-        </div>}
         <div style={{ display: view === 'map-view' ? 'flex' : 'none', flex: 1, minHeight: 0, minWidth: 0 }}>
-          <MapView searchLocation={searchLocation} reportRecords={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} enforcerClient={live && !previewing ? backend : null} onAssigned={refresh}
-            onDemoSave={live && !previewing ? undefined : saveReport}
-            onDemoAssign={live && !previewing ? undefined : (report, _stationId, officerId) => saveReport(report.id, demoAssignmentPatch(displayed.included.users, displayed.data, report.id, officerId))} />
+          <MapView searchLocation={searchLocation} reportRecords={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} enforcerClient={live ? backend : null} onAssigned={refresh} />
         </div>
         {view === 'dashboard-view' && <DashboardView reports={displayed.data} onOpenReport={setActiveReport} />}
-        {view === 'reports-view' && <ReportsView reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} selectedReportId={activeReport} detailPanel={selectedReport ? <ReportModal embedded key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onViewOnMap={viewReportOnMap} onClose={() => setActiveReport(null)} /> : null} />}
+        {view === 'reports-view' && <ReportsView onReview={openReview} openingReview={openingReview} reviewOpenError={reviewOpenError} reports={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} selectedReportId={activeReport} detailPanel={selectedReport ? <ReportModal embedded key={selectedReport.id + ":" + (selectedReport.version ?? 0)} report={selectedReport} users={displayed.included.users} live={live} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live ? correctReport : undefined} onOpenOriginal={setActiveReport} onViewOnMap={viewReportOnMap} onClose={() => setActiveReport(null)} /> : null} />}
         {view === 'officers-view' && <OfficersView reports={displayed.data} users={live ? users : []} onOpenReport={setActiveReport} />}
         {view === 'accounts-view' && live && <AccountsView key={notificationAccountId} client={backend} currentUserId={signedInUser?.id} initialSearch={notificationAccountId} />}
-        {view === 'analytics-view' && <AnalyticsView reports={reports} users={users} source={live ? 'Shared reports' : 'Demo / session preview'} />}
+        {view === 'analytics-view' && <AnalyticsView reports={reports} users={users} source="Reports" />}
       </div>
-      {selectedReport && view === 'dashboard-view' && <DashboardReportSummary key={selectedReport.id} report={selectedReport} onClose={() => setActiveReport(null)} onManage={() => setView('reports-view')} />}
-      {selectedReport && !['dashboard-view', 'reports-view'].includes(view) && <ReportModal key={`${previewing ? 'demo' : 'current'}:${selectedReport.id}:${selectedReport.version ?? 0}`} report={selectedReport} users={displayed.included.users} live={live && !previewing} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live && !previewing ? correctReport : undefined} onOpenOriginal={setActiveReport} onViewOnMap={viewReportOnMap} onClose={() => setActiveReport(null)} />}
+      {selectedReport && view === 'dashboard-view' && <DashboardReportSummary key={selectedReport.id + ":" + (selectedReport.version ?? 0)} report={selectedReport} onClose={() => setActiveReport(null)} onManage={() => setView('reports-view')} />}
+      {selectedReport && !['dashboard-view', 'reports-view'].includes(view) && <ReportModal key={selectedReport.id + ":" + (selectedReport.version ?? 0)} report={selectedReport} users={displayed.included.users} live={live} onSave={saveReport} reports={displayed.data} onDuplicate={saveDuplicate} onCorrect={live ? correctReport : undefined} onOpenOriginal={setActiveReport} onViewOnMap={viewReportOnMap} onClose={() => setActiveReport(null)} />}
     </div></CategoryContext.Provider>
   )
 }

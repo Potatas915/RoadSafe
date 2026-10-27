@@ -37,14 +37,14 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
     dialog.current.showModal()
     return () => { previous?.focus() }
   }, [embedded])
-  async function submit(event) {
+  async function submit(event, nextStatus = status) {
     event.preventDefault()
     if (saving) return
     if (returningToReview && !reviewReason.trim()) { setError('Provide a reason for returning this case to review.'); return }
-    if (status === REPORT_STATUS.REJECTED && !rejectionReason.trim()) { setError('Provide a rejection reason.'); return }
+    if (nextStatus === REPORT_STATUS.REJECTED && !rejectionReason.trim()) { setError('Provide a rejection reason.'); return }
     setSaving(true); setError('')
     const remarks = returningToReview ? `${officialRemarks.trim()}\nReturn to review: ${reviewReason.trim()}`.trim() : officialRemarks
-    try { await onSave(report.id, { status, assignedOfficerId: returningToReview ? null : assignedOfficerId || null, officialRemarks: remarks, rejectionReason: rejectionReason.trim() || null }) }
+    try { await onSave(report.id, { status: nextStatus, assignedOfficerId: returningToReview ? null : assignedOfficerId || null, officialRemarks: remarks, rejectionReason: rejectionReason.trim() || null }, { keepOpen: nextStatus === REPORT_STATUS.UNDER_REVIEW && ['Submitted', 'Additional Information Required'].includes(report.status) }) }
     catch (failure) { setError(failure.message) }
     finally { setSaving(false) }
   }
@@ -123,7 +123,7 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
             <section aria-label="Report workflow" className="space-y-2">
               {officer && statusChoices.includes(REPORT_STATUS.VERIFIED) && <p className="text-slate-400">Verification decision</p>}
               <p className="text-slate-400">Report status: <strong className="text-strong">{report.status}</strong></p>
-              <div className="flex flex-wrap gap-2">{statusChoices.map(value => <button key={value} type="button" disabled={saving} aria-pressed={status === value} onClick={() => { setStatus(value); setError('') }} className="rounded-lg border border-darkBorder px-3 py-2 text-orange-400 hover:bg-orange-400/10 aria-pressed:bg-orange-400/10 disabled:opacity-50">{actionLabels[value]}</button>)}</div>
+              <div className="flex flex-wrap gap-2">{statusChoices.map(value => <button key={value} type="button" disabled={saving} aria-pressed={status === value} onClick={event => { if (live && !officer && value === REPORT_STATUS.UNDER_REVIEW && ['Submitted', 'Additional Information Required'].includes(report.status)) return submit(event, value); setStatus(value); setError('') }} className="rounded-lg border border-darkBorder px-3 py-2 text-orange-400 hover:bg-orange-400/10 aria-pressed:bg-orange-400/10 disabled:opacity-50">{actionLabels[value]}</button>)}</div>
               {status !== report.status && <div role="status" className="rounded-lg border border-orange-400/30 p-3 space-y-2"><p>Pending action: {returningToReview ? 'Return to review' : actionLabels[status]}. Confirm below to save.</p><button type="button" disabled={saving} className="underline" onClick={() => { setStatus(report.status); setError('') }}>Cancel action</button></div>}
               {!officer && !report.isDuplicate && ['Verified', 'Assigned', 'In Progress'].includes(report.status) && <details className="rounded-lg border border-darkBorder p-3 space-y-2"><summary className="cursor-pointer text-slate-400">Administrative correction</summary><p className="text-amber-300">Returning to review clears verification and ends any enforcer assignment. Use only when the report needs another review.</p><button type="button" disabled={saving} onClick={() => { setStatus(REPORT_STATUS.UNDER_REVIEW); setError('') }} className="rounded-lg border border-darkBorder px-3 py-2">Return to review</button></details>}
               {returningToReview && <label className="block">Reason for returning to review<textarea aria-label="Return to review reason" required maxLength={5000} className={control} value={reviewReason} disabled={saving} onChange={e => setReviewReason(e.target.value)} /></label>}

@@ -6,119 +6,70 @@ import vm from 'node:vm'
 import { transformSync } from 'esbuild'
 import React from 'react'
 
-test('report review and Officer Dispatch preserve the selected demo/current source', async () => {
+test('all operational views share one backend report feed and newly loaded reports join it', async () => {
+  const { reportsResponse } = await import('../src/data/reports.js')
+  const feed = structuredClone(reportsResponse)
   const values = []
   let cursor = 0
+  const client = {}
+  const saves = []
   const hooks = {
     useState(initial) {
       const slot = cursor++
-      if (!(slot in values)) values[slot] = typeof initial === 'function' ? initial() : initial
+      if (!(slot in values)) {
+        const value = typeof initial === 'function' ? initial() : initial
+        values[slot] = value?.meta?.schemaVersion && Array.isArray(value.data) ? structuredClone(feed) : value
+      }
       return [values[slot], next => { values[slot] = typeof next === 'function' ? next(values[slot]) : next }]
-    },
-    useEffect() {}, useCallback: fn => fn,
+    }, useEffect() {}, useCallback: fn => fn,
   }
-  const url = new URL('../src/App.jsx', import.meta.url)
-  const require = createRequire(url)
-  const module = { exports: {} }
+  const url = new URL('../src/App.jsx', import.meta.url), require = createRequire(url), module = { exports: {} }
   vm.runInNewContext(transformSync(readFileSync(url, 'utf8'), { loader: 'jsx', jsx: 'automatic', format: 'cjs' }).code, {
-    module, exports: module.exports, structuredClone,
-    require(name) {
+    module, exports: module.exports, require(name) {
       if (name === 'react') return hooks
       if (name.endsWith('.css')) return {}
-      if (name === './backend/client.js') return { backend: null }
+      if (name === './backend/client.js') return { backend: client }
+      if (name === './backend/reports.js') return { loadReportFeed: async () => structuredClone(feed), saveReportReview: async (...args) => saves.push(args) }
       if (name === './hooks/useNotifications.js') return { __esModule: true, default: () => ({ notifications: [], unreadCount: 0 }) }
       if (name === './components/CategoryContext.js') return { CategoryContext: { Provider: 'Provider' } }
       if (name.startsWith('./components/') || name === './backend/ManagerAuth.jsx') return { __esModule: true, default: name.split('/').pop().replace('.jsx', '') }
       return require(name)
     },
   })
-  const dashboard = module.exports.default().type
-  const render = (props = {}) => { cursor = 0; return dashboard(props) }
+  const admin = feed.included.users.find(user => user.role === 'Admin')
+  const signedInUser = { id: admin.id, appRole: 'Admin' }
+  const dashboard = module.exports.default().props.children(signedInUser).type
+  const render = () => { cursor = 0; return dashboard({ signedInUser }) }
   function find(node, type) {
     if (!React.isValidElement(node)) return null
     if (node.type === type) return node
-    for (const child of React.Children.toArray(node.props.children)) {
-      const match = find(child, type)
-      if (match) return match
-    }
+    for (const child of React.Children.toArray(node.props.children)) { const match = find(child, type); if (match) return match }
     return null
   }
   let tree = render()
+  const reports = find(tree, 'MapView').props.reportRecords
+  assert.equal(find(tree, 'MapView').props.enforcerClient, client)
+  assert.equal(find(tree, 'select'), null)
+  assert.equal(find(tree, 'MapView').props.onDemoSave, undefined)
+  for (const [view, component] of [['reports-view', 'ReportsView'], ['dashboard-view', 'DashboardView'], ['officers-view', 'OfficersView'], ['analytics-view', 'AnalyticsView']]) {
+    find(tree, 'Sidebar').props.onChange(view)
+    tree = render()
+    assert.strictEqual(find(tree, component).props.reports, reports)
+  }
   find(tree, 'Sidebar').props.onChange('reports-view')
   tree = render()
-  const managementReports = find(tree, 'ReportsView').props.reports
-  const id = managementReports[0].id
-  find(tree, 'Sidebar').props.onChange('map-view')
+  find(tree, 'ReportsView').props.onOpenReport(reports[0].id)
   tree = render()
-  assert.strictEqual(find(tree, 'MapView').props.reportRecords, managementReports)
-  assert.equal(find(tree, 'MapView').props.enforcerClient, null)
-  find(tree, 'MapView').props.onOpenReport(id)
+  const modal = find(tree, 'ReportsView').props.detailPanel
+  assert.equal(modal.props.live, true)
+  feed.data.push({ ...feed.data[0], id: 'new-submission' })
+  await modal.props.onSave(reports[0].id, { status: reports[0].status })
+  assert.equal(saves[0][0], client)
   tree = render()
-  assert.equal(find(tree, 'ReportModal').props.report.id, id)
-  const sourcePicker = find(tree, 'select')
-  sourcePicker.props.onChange({ target: { value: 'current' } })
-  tree = render()
-  const currentReports = find(tree, 'MapView').props.reportRecords
-  find(tree, 'Sidebar').props.onChange('reports-view')
-  tree = render()
-  assert.strictEqual(find(tree, 'ReportsView').props.reports, currentReports)
-  find(tree, 'select').props.onChange({ target: { value: 'demo' } })
-  tree = render()
-  find(tree, 'ReportsView').props.onOpenReport(id)
-  tree = render()
-  assert.ok(find(tree, 'ReportsView').props.detailPanel)
-  find(tree, 'ReportsView').props.detailPanel.props.onViewOnMap(managementReports[0])
-  tree = render()
-  assert.equal(find(tree, 'ReportsView'), null)
-  assert.equal(find(tree, 'ReportModal'), null)
-  assert.equal(find(tree, 'MapView').props.searchLocation.reportId, id)
-  assert.deepEqual(Array.from(find(tree, 'MapView').props.searchLocation.coordinates), [managementReports[0].location.coordinates.longitude, managementReports[0].location.coordinates.latitude])
-  assert.strictEqual(find(tree, 'MapView').props.reportRecords, managementReports)
-  find(tree, 'Sidebar').props.onChange('reports-view')
-  tree = render()
-  assert.equal(find(tree, 'DashboardReportSummary'), null)
-  find(tree, 'Sidebar').props.onChange('dashboard-view')
-  tree = render()
-  assert.equal(find(tree, 'DashboardReportSummary'), null)
-  find(tree, 'DashboardView').props.onOpenReport(id)
-  tree = render()
-  assert.ok(find(tree, 'DashboardReportSummary'))
-  find(tree, 'DashboardReportSummary').props.onManage()
-  tree = render()
-  assert.equal(find(tree, 'ReportsView').props.selectedReportId, id)
-  assert.ok(find(tree, 'ReportsView').props.detailPanel)
-  find(tree, 'ReportsView').props.detailPanel.props.onViewOnMap(managementReports[0])
-  tree = render()
-  assert.equal(find(tree, 'ReportsView'), null)
-  assert.equal(find(tree, 'ReportModal'), null)
-  assert.equal(find(tree, 'MapView').props.searchLocation.reportId, id)
-  assert.deepEqual(Array.from(find(tree, 'MapView').props.searchLocation.coordinates), [managementReports[0].location.coordinates.longitude, managementReports[0].location.coordinates.latitude])
-  assert.strictEqual(find(tree, 'MapView').props.reportRecords, managementReports)
-  find(tree, 'Sidebar').props.onChange('reports-view')
-  tree = render()
-  assert.equal(find(tree, 'DashboardReportSummary'), null)
-  find(tree, 'Sidebar').props.onChange('officers-view')
-  tree = render({ signedInUser: { id: 'admin-demo' } })
-  assert.strictEqual(find(tree, 'OfficersView').props.reports, managementReports)
-  assert.notStrictEqual(find(tree, 'OfficersView').props.users, find(tree, 'MapView').props.users)
-  assert.equal(find(tree, 'select').props.value, 'demo')
-  find(tree, 'OfficersView').props.onOpenReport(id)
-  tree = render({ signedInUser: { id: 'admin-demo' } })
-  const modal = find(tree, 'ReportModal')
-  assert.equal(modal.props.live, false)
-  assert.equal(modal.props.onCorrect, undefined)
-  await modal.props.onSave(id, { status: modal.props.report.status, assignedOfficerId: modal.props.report.assignedOfficerId, officialRemarks: 'Demo dispatch review', rejectionReason: null })
-  tree = render({ signedInUser: { id: 'admin-demo' } })
-  assert.equal(find(tree, 'OfficersView').props.reports.find(report => report.id === id).officialRemarks, 'Demo dispatch review')
-  find(tree, 'select').props.onChange({ target: { value: 'current' } })
-  tree = render()
-  assert.strictEqual(find(tree, 'OfficersView').props.reports, currentReports)
-  find(tree, 'OfficersView').props.onOpenReport(id)
-  tree = render({ signedInUser: { id: 'admin-demo' } })
-  assert.equal(find(tree, 'ReportModal').props.live, true)
+  assert.ok(find(tree, 'ReportsView').props.reports.some(report => report.id === 'new-submission'))
+  assert.strictEqual(find(tree, 'ReportsView').props.reports, find(tree, 'MapView').props.reportRecords)
+  assert.doesNotMatch(readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8'), /demoPreview|demoResponse|reportsResponse|Report source|VITE_REPORTS_API_URL/)
 })
-
-
 test('tactical map has no independent fictional incident source', () => {
   const source = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
   assert.doesNotMatch(source, /luzonReportsResponse|sampleMode|Map report source/)

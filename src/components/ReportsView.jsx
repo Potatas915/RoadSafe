@@ -9,7 +9,7 @@ const STATUS_COLORS = ['#f5c451', '#fb923c', '#c4b5fd', '#34d399', '#60a5fa', '#
 const statusColor = (status) => STATUS_COLORS[REPORT_STATUSES.indexOf(status)] ?? '#94a3b8'
 const age = (iso) => { const hours = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 3600000)); return hours < 48 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago` }
 
-export default function ReportsView({ reports, users, onOpenReport, selectedReportId, detailPanel }) {
+export default function ReportsView({ reports, users, onOpenReport, onReview = onOpenReport, openingReview = false, reviewOpenError = '', selectedReportId, detailPanel }) {
   const ACCIDENT_CATEGORIES = useCategories()
   const categoryLabel = useCategoryLabel()
 
@@ -88,7 +88,7 @@ export default function ReportsView({ reports, users, onOpenReport, selectedRepo
                   </td>
                   <td className={officer === 'Unassigned' ? 'text-slate-500' : 'font-medium text-strong'}>{officer}</td>
                   <td className="reports-when"><span className="block text-slate-200">{formatDateTime(new Date(lastReportUpdate(r)).toISOString())}</span><span className="block text-[11px] text-slate-400">Submitted {age(r.submittedAt)}</span></td>
-                  <td><button aria-label={'View report ' + r.id} onClick={() => onOpenReport(r.id)} className="reports-open">Review<i aria-hidden="true" className="fa-solid fa-chevron-right text-[9px]" /></button></td>
+                  <td><button aria-label={'View report ' + r.id} disabled={openingReview} onClick={() => onReview(r.id)} className="reports-open">Review<i aria-hidden="true" className="fa-solid fa-chevron-right text-[9px]" /></button></td>
                 </tr>
               })}
               {!visible.length && <tr><td colSpan={9} className="reports-empty">No reports match these filters.</td></tr>}
@@ -97,6 +97,8 @@ export default function ReportsView({ reports, users, onOpenReport, selectedRepo
         </div>
         <footer className="reports-footer"><span>Showing {visible.length} of {reports.length} reports</span><span>Queue counts follow your filters</span></footer>
       </div>
+      {openingReview && <p role="status">Opening review…</p>}
+      {reviewOpenError && <p role="alert" className="text-red-300">{reviewOpenError}</p>}
       {detailPanel || <p className="mt-3 px-1 text-xs text-slate-400">Select Review to open a report workspace.</p>}
       </div>
     </main>

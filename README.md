@@ -1,6 +1,6 @@
 # RoadSafe Admin
 
-React/Vite web admin prototype for the road accident reporting project. The map, report table, dashboard, officer assignments and report modal share one API-shaped dataset in `src/data/reports.js`.
+React/Vite accident reporting management app with one Supabase report source shared with the Flutter client. Map, Dashboard, Reports, Officer Dispatch and Analytics read the same feed and use protected backend writes. There is no Demo/Shared selector or local report fallback. Missing backend configuration shows a setup message rather than fictional incidents.
 
 ## Run and verify
 
@@ -12,21 +12,13 @@ npm run build
 npm run preview
 ```
 
-The test runner uses Node's built-in test API (Node 24 was used during development). Build output is `dist/`.
+Configure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY for the same project used by mobile. VITE_CARTO_API_KEY optionally configures the basemap. Never put service-role keys in browser configuration. Report activity refreshes every 15 seconds.
 
-## Data and configuration
+## Testing dataset — 2026-10-28
 
-- `src/models/report.js`: the eight report statuses, Public/Admin/Officer roles, accident categories, full report shape, validation and presentation adapters.
-- `src/data/reports.js`: one deterministic demo response, including referenced users/personnel.
-- `src/App.jsx`: shared state, optional API read and session-only modal edits.
-- [Reports API contract](../2nd%20brain%20RoadSafe/Projects/RoadSafe%20Admin/Reports%20API%20Contract.md): response example, field rules and integration boundaries in the second brain.
+The connected testing database was reset to ten ordinary Submitted reports around Bulacan. The records are synthetic testing data with realistic incident details; the UI does not badge them as demo records. Newly submitted mobile reports enter this same database/feed and follow the same workflow. Accounts and station geography were retained; old report evidence was removed. Report fixtures under src/data remain for automated tests and are not imported by the application entry point.
 
-Optional `.env` names: `VITE_CARTO_API_KEY` for the basemap; `VITE_REPORTS_API_URL` for a contract-v1 JSON response. Without a reports URL, the app uses demo data. An unavailable/incompatible endpoint shows a demo fallback message. Values prefixed VITE_ are exposed to browser code; do not use server secrets.
-
-MapLibre displays accident categories, clusters and severity heatmaps. Police/medical station locations come from Overpass with a browser cache. Station requests are browser-local simulations. Report edits last for the session and do not dispatch personnel or update a backend. Role definitions exist, but login/role enforcement, real reporting/evidence upload, notifications, audit and exports remain future work.
-
-Stack: React 18, Vite 5, Tailwind 3, MapLibre, Chart.js/react-chartjs-2 and Font Awesome. Flutter is outside this web work scope.
-
+The one-off replacement SQL lives outside this repository at ../supabase/scripts/replace-report-test-data.sql. It deletes report data: do not rerun it during startup or deploy it as a migration. The rollback-only ../supabase/tests/single_report_source.sql proves a normal Public submission joins the ten seed records in the Admin feed. It assumes the reset dataset still has exactly ten reports.
 ## Current staff/account workflow — R01 (2026-10-19)
 
 The current shared-backend build supports active Admin and Officer sign-in. Admin Account Management searches existing accounts and edits profile/role/access with reasons and version checks. Self-demotion/suspension and removing Officers with active cases are blocked. Officers have a dedicated unassigned verification queue plus their own active assignments; verification/progress are server-restricted. They cannot access Admin controls, reassign, reject, correct facts or manage duplicates/categories/accounts. Earlier prototype-only statements above are historical; use the vault Account Administration Policy and supabase/README.md for current permissions.

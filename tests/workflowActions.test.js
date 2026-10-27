@@ -6,6 +6,7 @@ import vm from 'node:vm'
 import { transformSync } from 'esbuild'
 import React from 'react'
 import { reportsResponse } from '../src/data/reports.js'
+import { openAdminReview } from '../src/backend/reports.js'
 
 function setup(status, extra = {}, props = {}) {
   const report = { ...structuredClone(reportsResponse.data[0]), status, assignedOfficerId: null, ...extra }
@@ -37,14 +38,32 @@ function setup(status, extra = {}, props = {}) {
   return { report, saves, render, button, submit, input }
 }
 
-test('review action needs confirmation and a normal remarks save preserves the current status', async () => {
+test('starting and resuming shared Admin review saves immediately and keeps the workspace open', async () => {
   const ui = setup('Submitted')
   await ui.submit()
   assert.equal(ui.saves[0][1].status, 'Submitted')
-  ui.button('Start review').props.onClick()
-  assert.equal(ui.saves.length, 1)
-  await ui.submit()
+  await ui.button('Start review').props.onClick({ preventDefault() {} })
   assert.equal(ui.saves[1][1].status, 'Under Review')
+  assert.equal(ui.saves[1][2].keepOpen, true)
+  const resume = setup('Additional Information Required')
+  await resume.button('Resume review').props.onClick({ preventDefault() {} })
+  assert.equal(resume.saves[0][1].status, 'Under Review')
+  assert.equal(resume.saves[0][2].keepOpen, true)
+})
+
+test('explicit Admin review writes the expected version before refresh/open and safely refreshes conflicts', async () => {
+  for (const conflict of [null, { code: '40001' }, { status: 409 }]) {
+    const calls = []
+    const report = { ...reportsResponse.data[0], status: 'Submitted', version: 7, isDuplicate: false, duplicateOfReportId: null }
+    await openAdminReview({ client: { async rpc(name, args) { calls.push('save'); assert.equal(name, 'update_accident_report'); assert.equal(args.p_version, 7); assert.equal(args.p_status, 'Under Review'); return { error: conflict } } }, report, live: true, actorRole: 'Admin', refresh: async () => calls.push('refresh'), open: id => { assert.equal(id, report.id); calls.push('open') } })
+    assert.deepEqual(calls, ['save', 'refresh', 'open'])
+  }
+  for (const overrides of [{ live: false }, { actorRole: 'Officer' }, { report: { status: 'Verified' } }, { report: { isDuplicate: true } }, { report: { duplicateOfReportId: 'original' } }]) {
+    let opened = 0
+    await openAdminReview({ client: { rpc() { throw Error('Unexpected write') } }, live: overrides.live ?? true, actorRole: overrides.actorRole ?? 'Admin', report: { id: 'case', status: 'Submitted', ...overrides.report }, refresh() { throw Error('Unexpected refresh') }, open: () => opened++ })
+    assert.equal(opened, 1)
+  }
+  await assert.rejects(openAdminReview({ client: { rpc: async () => ({ error: Error('Denied') }) }, live: true, actorRole: 'Admin', report: { status: 'Submitted' }, open() { throw Error('Unexpected open') } }), /Denied/)
 })
 
 test('rejection requires a reason and cancelling the action preserves review', async () => {

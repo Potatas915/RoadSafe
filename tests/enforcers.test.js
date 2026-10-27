@@ -59,14 +59,14 @@ test('cancelling a shared request clears the officer through the versioned repor
 
 test('map cancellation targets the request accident, waits for unassignment, and retains failed requests', async () => {
   const source = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
-  const body = source.match(/async function cancelRequest\(\) \{([\s\S]*?)\n  \}/)[1]
+  const body = source.match(/async function cancelRequest\([^)]*\) \{([\s\S]*?)\n  \}/)[1]
   const report = { id: 'request-report', status: 'Assigned', assignedOfficerId: 'officer', officialRemarks: 'Original' }
   for (const outcome of ['success', 'failure', 'demo', 'refresh-failure']) {
     const calls = []
     let resolveSave, rejectSave
     const save = new Promise((resolve, reject) => { resolveSave = resolve; rejectSave = reject })
     const cancel = vm.runInNewContext('(async () => {' + body + '})', {
-      selectedStation: { id: 'station' }, selectedRecord: { id: 'another-selected-report' },
+      completed: false, selectedStation: { id: 'station' }, selectedRecord: { id: 'another-selected-report' },
       responders: { get: () => ({ request: { reportId: report.id } }), release: id => calls.push(`release:${id}`) },
       mapRecords: [report], enforcerClient: outcome === 'demo' ? null : {}, hasActiveOfficer,
       onDemoSave: async (id, patch) => { assert.equal(id, report.id); assert.equal(patch.status, 'Verified'); assert.equal(patch.assignedOfficerId, null); calls.push('demo-save') },
@@ -87,6 +87,37 @@ test('map cancellation targets the request accident, waits for unassignment, and
       assert.deepEqual(calls, ['save', 'release:station', 'refresh'])
     }
   }
+})
+
+test('completing a scene releases the request officer before retiring its route', async () => {
+  const source = readFileSync(new URL('../src/components/MapView.jsx', import.meta.url), 'utf8')
+  const body = source.match(/async function cancelRequest\([^)]*\) \{([\s\S]*?)\n  \}/)[1]
+  for (const outcome of ['success', 'failure', 'refresh-failure']) {
+    const calls = []
+    const report = { id: 'request-report', status: 'In Progress', assignedOfficerId: 'officer', version: 7 }
+    const complete = vm.runInNewContext('(async () => {' + body + '})', {
+      completed: true, selectedStation: { id: 'station' }, selectedRecord: { id: 'other-report' },
+      responders: { get: () => ({ request: { reportId: report.id } }), release: () => calls.push('release'), setStatus: (id, status) => { assert.equal(id, 'station'); assert.equal(status, 'Completed'); calls.push('complete') } },
+      mapRecords: [report], enforcerClient: {},
+      cancelStationEnforcer: async (client, target, completed) => {
+        assert.equal(target, report); assert.equal(completed, true)
+        await cancelStationEnforcer({ rpc: async (name, args) => {
+          assert.equal(args.p_officer, null); assert.equal(args.p_status, 'Under Review'); assert.equal(args.p_version, 7)
+          assert.match(args.p_remarks, /scene completed/i); assert.doesNotMatch(args.p_remarks, /cancelled/i)
+          calls.push('save')
+          return outcome === 'failure' ? { error: Error('Stale report') } : {}
+        } }, target, completed)
+      },
+      onAssigned: async () => { calls.push('refresh'); if (outcome === 'refresh-failure') throw Error('offline') },
+    })
+    if (outcome === 'failure') { await assert.rejects(complete(), /Stale report/); assert.deepEqual(calls, ['save']) }
+    else {
+      if (outcome === 'refresh-failure') await assert.rejects(complete(), /Scene completed and officer released/)
+      else await complete()
+      assert.deepEqual(calls, ['save', 'complete', 'refresh'])
+    }
+  }
+  assert.match(source, /onStatus=\{\(\) => cancelRequest\(true\)\}/)
 })
 
 test('station directory preserves OSM node/way/relation identity and strips UI metadata', async () => {
