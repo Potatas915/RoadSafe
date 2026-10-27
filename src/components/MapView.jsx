@@ -1394,17 +1394,10 @@ export default function MapView({ searchLocation, reportRecords, users = [], onO
               </div>
             )}
 
-            {police.error && (
-              <div className="roadsafe-note is-error">
-                Police: {police.error}
-              </div>
-            )}
-
-            {medical.error && (
-              <div className="roadsafe-note is-error">
-                Medical: {medical.error}
-              </div>
-            )}
+            {[['Police', police], ['Medical', medical]].map(([name, layer]) => <div key={name}>
+              {layer.notice && <p className="roadsafe-note" role="status">{name}: {layer.notice}</p>}
+              {layer.error && <div className="roadsafe-note"><p className="is-error roadsafe-note" role="alert">{layer.error}</p><button type="button" disabled={layer.loading} onClick={layer.show} className="dx-btn dx-btn-inline mt-2">Retry {name.toLowerCase()}</button>{layer.errorDetails && <details className="mt-2"><summary className="cursor-pointer">Details</summary><p className="mt-1 break-words">{layer.errorDetails}</p></details>}</div>}
+            </div>)}
           </section>
             </div>
           </aside>

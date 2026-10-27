@@ -24,6 +24,18 @@ function component(relative) {
 const ReportModal = component('../src/components/ReportModal.jsx')
 const ReportsView = component('../src/components/ReportsView.jsx')
 
+test('map severity uses index units and separates description from structured scoring', () => {
+  const Card = component('../src/components/MapReportCard.jsx')
+  const report = { ...first, categoryId: 'pedestrian', description: 'Blue car and white bicycle and another unknown vehicle', injuries: { status: 'none', injuredCount: 0, fatalityCount: 0 }, vehicles: [{ type: 'car', count: 1 }, { type: 'bicycle', count: 1 }, { type: 'unknown', count: 1 }] }
+  const html = renderToStaticMarkup(React.createElement(Card, { report }))
+  assert.match(html, /35\/100/)
+  assert.doesNotMatch(html, /35%|Incident description &amp; scoring/)
+  assert.match(html, />Incident description<\/summary>/)
+  assert.match(html, /How the severity index is calculated/)
+  assert.match(html, /not the description text or photos/)
+  assert.match(html, /3 reported vehicles/)
+})
+
 test('report references display the full UUID in details and officer dispatch', () => {
   const id = 'c12e363d-c13c-43b3-870c-399b7ecadf1a'
   const report = { ...first, id, status: 'Assigned', assignedOfficerId: 'officer' }

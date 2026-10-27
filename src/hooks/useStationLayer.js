@@ -167,6 +167,8 @@ export default function useStationLayer(
   const [area, setArea] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [errorDetails, setErrorDetails] = useState("");
   const abortRef = useRef(null);
   const lastRadiusRef = useRef(radiusKm);
 
@@ -239,6 +241,8 @@ export default function useStationLayer(
     setLoading(false);
     setDeployed(false);
     setError("");
+    setNotice("");
+    setErrorDetails("");
   }, []);
 
   const deploy = useCallback(
@@ -258,6 +262,8 @@ export default function useStationLayer(
       setArea(null);
       setLoading(true);
       setError("");
+      setNotice("");
+      setErrorDetails("");
 
       try {
         // Reuse the national inventory and filter the deployment radius locally.
@@ -269,12 +275,12 @@ export default function useStationLayer(
 
         setStations(results);
         setArea(nationwide ? null : { center, radiusKm: radius });
-        if (all.warning) setError(all.warning);
+        if (all.warning) setNotice('Showing saved data. Station updates are temporarily unavailable.');
         setDeployed(true);
 
         if (nationwide) {
           map.fitBounds([[116.8, 4.5], [127, 21.3]], { padding: 40, duration: 600 });
-          if (!results.length) setError("No mapped stations were returned for the Philippines.");
+          if (!results.length) setNotice("No mapped stations were returned for the Philippines.");
           return;
         }
         const ring = circleCoordinates(center, radius);
@@ -289,12 +295,13 @@ export default function useStationLayer(
         );
 
         if (results.length === 0) {
-          setError(`None found within ${radius} km.`);
+          setNotice(`${all.warning ? 'Showing saved data. ' : ''}No ${config.id === 'police' ? 'police stations' : 'medical facilities'} found within ${radius} km.`);
         }
       } catch (err) {
-        if (err.name !== "AbortError") {
+        if (!controller.signal.aborted && err.name !== "AbortError") {
           console.error(`${config.id} lookup failed:`, err);
-          setError(err.message || "Could not load stations.");
+          setError(`Couldn’t load ${config.id === 'police' ? 'police stations' : 'medical facilities'} right now.`);
+          setErrorDetails(err.message || "Station lookup failed.");
           setDeployed(false);
         }
       } finally {
@@ -327,6 +334,8 @@ export default function useStationLayer(
     inventory,
     loading,
     error,
+    notice,
+    errorDetails,
     toggle,
     show,
     hide,

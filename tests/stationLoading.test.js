@@ -18,6 +18,21 @@ function storage(t) {
 const response = (elements) => ({ ok: true, json: async () => ({ elements }) })
 const station = (id, lng, lat, tags = {}) => ({ type: 'node', id, lon: lng, lat, tags })
 
+test('outages reuse expired matching browser cache without renewing its age', async (t) => {
+  const items = storage(t)
+  const savedAt = Date.now() - 9 * 24 * 60 * 60 * 1000
+  const key = 'roadsafe:police-stations:v2'
+  items.set(key, JSON.stringify({ philippines: { savedAt, stations: [{ id: 'saved', lat: 14.6, lng: 121 }] } }))
+  t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Offline') })
+  t.mock.method(console, 'error', () => {})
+  const results = await police()({ nationwide: true })
+  assert.equal(results[0].id, 'saved')
+  assert.match(results.warning, /Showing saved data/)
+  assert.equal(JSON.parse(items.get(key)).philippines.savedAt, savedAt)
+  items.set(key, JSON.stringify({ philippines: { savedAt, stations: [{ id: 'bad', lat: null, lng: 121 }] } }))
+  await assert.rejects(police()({ nationwide: true }), /Could not load/)
+})
+
 test('search bounds cover every supported radius around Bulacan, Manila and Bicol', () => {
   for (const center of [malolos, manila, legazpi, [121.727, 17.6132]]) {
     for (const radius of [1, 1.5, 2, 2.5, 3, 3.5, 10]) {
@@ -109,7 +124,7 @@ test('provider outage details and missing station API are shown instead of gener
   const mock = t.mock.method(globalThis, 'fetch', async () => ({ ok: false, json: async () => ({ error: 'Station data providers are temporarily unavailable (HTTP 503).' }) }))
   await assert.rejects(police()({ center: manila, radiusKm: 2.5 }), /temporarily unavailable.*HTTP 503/)
   mock.mock.mockImplementation(async () => ({ ok: true, headers: { get: () => 'text/html' } }))
-  await assert.rejects(police()({ center: manila, radiusKm: 2.5 }), /station API is missing/)
+  await assert.rejects(police()({ center: manila, radiusKm: 2.5 }), /unexpected response instead of JSON/)
 })
 
 test('nationwide loads do not require a selected report, center, or radius', async (t) => {

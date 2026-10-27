@@ -35,8 +35,9 @@ export function createStationLoader(type, selectors, kindOf) {
   async function loadStations({ center, radiusKm, signal, force = false, nationwide = false } = {}) {
     const key = nationwide ? 'philippines' : stationSearchBounds(center, radiusKm).join(',')
     const cached = memory.get(key) || read()[key]
-    if (!force && cached && Number.isFinite(cached.savedAt) && Date.now() - cached.savedAt < TTL
-      && Array.isArray(cached.stations) && (!nationwide || cached.stations.length > 0) && cached.stations.every((station) => station && Number.isFinite(station.lat) && Number.isFinite(station.lng))) {
+    const usableCache = cached && Number.isFinite(cached.savedAt)
+      && Array.isArray(cached.stations) && (!nationwide || cached.stations.length > 0) && cached.stations.every((station) => station && Number.isFinite(station.lat) && Number.isFinite(station.lng) && Math.abs(station.lat) <= 90 && Math.abs(station.lng) <= 180)
+    if (!force && usableCache && Date.now() - cached.savedAt < TTL) {
       if (cached.warning) cached.stations.warning = cached.warning
       return cached.stations
     }
@@ -51,12 +52,12 @@ export function createStationLoader(type, selectors, kindOf) {
         const params = nationwide ? { type, scope: 'philippines' } : { type, bounds: key }
         const response = await fetch(`${endpoint}?${new URLSearchParams(params)}`, { signal: controller.signal })
         if (!response.ok) {
-          let message = 'Station lookup is unavailable. Start RoadSafe with npm run dev, npm run preview, or npm start so its station API is available.'
+          let message = `Station service returned HTTP ${response.status ?? 'error'}.`
           try { const failure = await response.json(); if (failure.error) message = failure.error } catch { /* Static hosts may return HTML instead of the API. */ }
           throw new Error(message)
         }
         const contentType = response.headers?.get('content-type')
-        if (contentType && !contentType.includes('application/json')) throw new Error('RoadSafe station API is missing. Use npm run dev, npm run preview, or npm start instead of a static-only server.')
+        if (contentType && !contentType.includes('application/json')) throw new Error('Station service returned an unexpected response instead of JSON.')
         const data = await response.json()
         if (data.remark || !Array.isArray(data.elements)) throw new Error(data.remark || 'Invalid station response')
         if (signal?.aborted) throw new DOMException('Station search cancelled', 'AbortError')
@@ -78,7 +79,7 @@ export function createStationLoader(type, selectors, kindOf) {
         if (memory.size > MAX_AREAS) memory.delete(memory.keys().next().value)
         try {
           const areas = { ...read(), [key]: entry }
-          const recent = Object.entries(areas).filter(([, value]) => Number.isFinite(value?.savedAt) && Date.now() - value.savedAt < TTL)
+          const recent = Object.entries(areas).filter(([, value]) => Number.isFinite(value?.savedAt))
             .sort((a, b) => b[1].savedAt - a[1].savedAt).slice(0, MAX_AREAS)
           localStorage.setItem(cacheKey, JSON.stringify(Object.fromEntries(recent)))
         } catch { /* Memory cache remains available if browser storage is full. */ }
@@ -86,14 +87,20 @@ export function createStationLoader(type, selectors, kindOf) {
       } catch (error) {
         if (signal?.aborted) throw new DOMException('Station search cancelled', 'AbortError')
         lastError = error instanceof TypeError
-          ? new Error('Could not reach the RoadSafe station API. Check that the RoadSafe server is running and retry.')
+          ? new Error('Could not reach the RoadSafe station service.')
           : error
       } finally {
         clearTimeout(timer)
         signal?.removeEventListener('abort', abort)
       }
     }
-    throw new Error(`Could not load ${type} stations for this area. Please retry. (${lastError?.message || 'Network error'})`)
+    if (usableCache) {
+      console.error(`${type} station refresh failed; using saved geography:`, lastError)
+      const result = [...cached.stations]
+      result.warning = `Showing saved data from ${new Date(cached.savedAt).toLocaleDateString('en-PH')}. Station updates are temporarily unavailable.`
+      return result
+    }
+    throw new Error(`Could not load ${type} stations. ${lastError?.message || 'Network error'}`)
   }
   return function load(options = {}) {
     if (!options.nationwide) return loadStations(options)
