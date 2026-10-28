@@ -50,8 +50,8 @@ test('account groups separate public users, enforcers and administrators includi
   assert.equal((html.match(/Edit account/g) ?? []).length, 3)
   assert.match(html, /Review application/)
   const empty = renderToStaticMarkup(React.createElement(AccountGroups, { accounts: [] }))
-  assert.match(empty, /No users on this page/)
-  assert.match(empty, /No enforcers on this page/)
+  assert.match(empty, /No matching users/)
+  assert.match(empty, /No matching enforcers/)
 })
 
 test('Admin sees pending enforcer applications and verification instructions', () => {
@@ -211,8 +211,9 @@ test('station directory exposes names and addresses and fails explicitly', async
 
 test('account tabs show one group and support keyboard switching', () => {
   let active = 0
-  const { AccountGroups } = component('../src/components/AccountsView.jsx', name => name === 'react' ? { ...React, useState: () => [active, next => { active = next }] } : undefined)
-  const render = () => AccountGroups({ accounts: [account], disabled: false })
+  let cursor = 0, pageIndex = 0
+  const { AccountGroups } = component('../src/components/AccountsView.jsx', name => name === 'react' ? { ...React, useState: () => cursor++ === 0 ? [active, next => { active = next }] : [pageIndex, next => { pageIndex = next }] } : undefined)
+  const render = () => { cursor = 0; return AccountGroups({ accounts: [account], disabled: false }) }
   function all(node, role) {
     if (!React.isValidElement(node)) return []
     return [...(node.props.role === role ? [node] : []), ...React.Children.toArray(node.props.children).flatMap(child => all(child, role))]
@@ -272,4 +273,47 @@ test('details display signup contacts without a test placeholder suffix', () => 
   const testNumber = renderToStaticMarkup(React.createElement(Details, { account: { ...account, mobileNumber: '09000000000', mobileNumberIsTest: true } }))
   assert.match(testNumber, />09000000000<\/dd>/)
   assert.doesNotMatch(testNumber, /Test placeholder/)
+})
+
+test('account search loads every backend page before grouping', async () => {
+  const { loadAccountSearch } = await import('../src/backend/accounts.js')
+  const rows = Array.from({ length: 53 }, (_, index) => ({ ...account, id: `account-${index}` }))
+  const offsets = []
+  const result = await loadAccountSearch({ rpc: async (name, args) => {
+    offsets.push(args.p_offset)
+    return { data: { data: rows.slice(args.p_offset, args.p_offset + args.p_limit), total: rows.length } }
+  } }, ' Officer ')
+  assert.deepEqual(offsets, [0, 50])
+  assert.equal(result.data.length, 53)
+  await assert.rejects(loadAccountSearch({ rpc: async () => ({ data: { data: [], total: 1 } }) }), /Account list changed/)
+})
+
+test('each tab paginates its own accounts and switching tabs resets the page', () => {
+  const state = [0, 0]
+  let cursor = 0
+  const { AccountGroups, AccountsTable } = component('../src/components/AccountsView.jsx', name => name === 'react' ? { ...React, useState: () => {
+    const slot = cursor++
+    return [state[slot], value => { state[slot] = value }]
+  } } : undefined)
+  const rows = [...Array.from({ length: 51 }, (_, index) => ({ ...account, id: `user-${index}`, role: 'Public' })), account, { ...account, id: 'admin', role: 'Admin' }]
+  const render = () => { cursor = 0; return AccountGroups({ accounts: rows }) }
+  function find(node, predicate) {
+    if (!React.isValidElement(node)) return []
+    return [...(predicate(node) ? [node] : []), ...React.Children.toArray(node.props.children).flatMap(child => find(child, predicate))]
+  }
+  const panel = tree => find(tree, node => node.props.role === 'tabpanel' && !node.props.hidden)[0]
+  const status = tree => find(panel(tree), node => node.props.role === 'status')[0].props.children
+  let tree = render()
+  assert.equal(status(tree), '1–50 of 51')
+  assert.equal(find(panel(tree), node => node.type === AccountsTable)[0].props.accounts.length, 50)
+  find(panel(tree), node => node.type === 'button' && node.props.children === 'Next')[0].props.onClick()
+  tree = render()
+  assert.equal(status(tree), '51–51 of 51')
+  assert.equal(find(panel(tree), node => node.type === 'button' && node.props.children === 'Next')[0].props.disabled, true)
+  find(tree, node => node.props.role === 'tab')[1].props.onClick()
+  tree = render()
+  assert.equal(status(tree), '1–1 of 1')
+  assert.equal(state[1], 0)
+  find(tree, node => node.props.role === 'tab')[2].props.onClick()
+  assert.equal(status(render()), '1–1 of 1')
 })

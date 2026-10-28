@@ -2,13 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import AccountEditor from './AccountEditor.jsx'
 import AccountDetails from './AccountDetails.jsx'
 export { default as AccountEditor } from './AccountEditor.jsx'
-import { loadAccounts, loadAccountStations, saveAccount } from '../backend/accounts.js'
+import { loadAccounts, loadAccountSearch, loadAccountStations, saveAccount } from '../backend/accounts.js'
 
 export default function AccountsView({ client, currentUserId, initialSearch = '' }) {
   const [page, setPage] = useState({ data: [], total: 0 })
   const [query, setQuery] = useState(initialSearch)
   const [search, setSearch] = useState(initialSearch)
-  const [offset, setOffset] = useState(0)
   const [selected, setSelected] = useState(null)
   const [viewed, setViewed] = useState(null)
   const [selectedReload, setSelectedReload] = useState(0)
@@ -24,11 +23,11 @@ export default function AccountsView({ client, currentUserId, initialSearch = ''
     const request = ++generation.current
     setLoading(true); setError('')
     try {
-      const next = await loadAccounts(client, query, offset)
+      const next = await loadAccountSearch(client, query)
       if (generation.current === request) setPage(next)
     } catch (failure) { if (generation.current === request) setError(failure.message) }
     finally { if (generation.current === request) setLoading(false) }
-  }, [client, query, offset])
+  }, [client, query])
   useEffect(() => { void reload(); return () => { generation.current++ } }, [reload])
   const stationLoader = useCallback(() => loadAccountStations(client), [client])
   function edit(account, trigger) { returnFocusRef.current = trigger; setEditError(''); setStale(false); setSelected(account) }
@@ -49,15 +48,14 @@ export default function AccountsView({ client, currentUserId, initialSearch = ''
     try {
       await saveAccount(client, selected, patch, reason)
       setSelected(null); setMessage('Account changes saved. Current permissions apply to new requests immediately.')
-      if (offset) setOffset(0)
-      else await reload()
+      await reload()
     } catch (failure) { setEditError(failure.message); setStale(failure.code === '40001' || /stale|account changed|refresh it before saving/i.test(failure.message)) }
     finally { setSaving(false) }
   }
   return <main className="dx-page flex-1 p-4 md:p-6 overflow-y-auto space-y-5">
     <h1 className="text-2xl font-semibold tracking-tight text-strong">Account management</h1>
     <p className="max-w-3xl text-sm text-slate-400">Manage existing registered accounts. Reassign active cases before suspending or removing an Officer. Account creation, deletion and password recovery are separate.</p>
-    <form onSubmit={e => { e.preventDefault(); setSelected(null); setOffset(0); if (query === search.trim() && offset === 0) void reload(); else setQuery(search.trim()) }} className="flex gap-2">
+    <form onSubmit={e => { e.preventDefault(); setSelected(null); if (query === search.trim()) void reload(); else setQuery(search.trim()) }} className="flex gap-2">
       <input aria-label="Search accounts" maxLength={120} placeholder="Name, username or account ID" className="dx-input flex-1" value={search} onChange={e => setSearch(e.target.value)} />
       <button disabled={saving} className="dx-btn dx-btn-primary dx-btn-inline">Search</button>
       <button type="button" disabled={saving || loading} onClick={() => { setSelected(null); void reload() }} className="dx-btn dx-btn-inline">Refresh</button>
@@ -65,9 +63,8 @@ export default function AccountsView({ client, currentUserId, initialSearch = ''
     {error && <p role="alert" className="text-red-300">{error} Refresh before retrying a stale edit.</p>}
     {message && <p role="status" className="text-emerald-300">{message}</p>}
     {loading && <p role="status">Loading accounts…</p>}
-    <AccountGroups accounts={page.data} onEdit={edit} onView={(account, trigger) => { returnFocusRef.current = trigger; setViewed(account) }} disabled={saving || loading} initialTab={initialSearch ? 1 : 0} />
+    <AccountGroups key={query} accounts={page.data} onEdit={edit} onView={(account, trigger) => { returnFocusRef.current = trigger; setViewed(account) }} disabled={saving || loading} initialTab={initialSearch ? 1 : 0} />
     {!loading && !page.data.length && <p>No matching accounts.</p>}
-    <div className="flex gap-3 text-sm items-center"><button disabled={offset === 0 || loading || saving} onClick={() => { setSelected(null); setOffset(offset - 50) }}>Previous</button><span>{page.total ? `${offset + 1}–${offset + page.data.length} of ${page.total}` : '0 accounts'}</span><button disabled={offset + 50 >= page.total || loading || saving} onClick={() => { setSelected(null); setOffset(offset + 50) }}>Next</button></div>
     {viewed && <AccountDetails account={viewed} onClose={() => setViewed(null)} returnFocusRef={returnFocusRef} />}
     {selected && <AccountEditor key={`${selected.id}:${selected.version}:${selectedReload}`} account={selected} currentUserId={currentUserId} onSave={save} onCancel={() => setSelected(null)} saving={saving} error={editError} stale={stale} onReload={reloadSelected} loadStations={stationLoader} returnFocusRef={returnFocusRef} />}
   </main>
@@ -75,6 +72,8 @@ export default function AccountsView({ client, currentUserId, initialSearch = ''
 
 export function AccountGroups({ accounts, onEdit, onView, disabled, initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab)
+  const [pageIndex, setPageIndex] = useState(0)
+  function selectTab(index) { setActiveTab(index); setPageIndex(0) }
   const groups = [
     { title: 'Users', accounts: accounts.filter(account => account.role === 'Public' && account.requestedAccountType !== 'Officer') },
     { title: 'Enforcers', accounts: accounts.filter(account => account.role === 'Officer' || (account.role === 'Public' && account.requestedAccountType === 'Officer')) },
@@ -84,18 +83,26 @@ export function AccountGroups({ accounts, onEdit, onView, disabled, initialTab =
     const next = event.key === 'ArrowRight' ? (index + 1) % groups.length : event.key === 'ArrowLeft' ? (index + groups.length - 1) % groups.length : event.key === 'Home' ? 0 : event.key === 'End' ? groups.length - 1 : null
     if (next === null || disabled) return
     event.preventDefault()
-    setActiveTab(next)
+    selectTab(next)
     event.currentTarget.parentElement.querySelectorAll('[role="tab"]')[next]?.focus()
   }
   return <div className="space-y-4">
     <div role="tablist" aria-label="Account types" className="flex gap-1 overflow-x-auto border-b border-darkBorder">
-      {groups.map((group, index) => <button key={group.title} type="button" role="tab" id={`accounts-tab-${index}`} aria-controls={`accounts-panel-${index}`} aria-selected={activeTab === index} tabIndex={activeTab === index ? 0 : -1} disabled={disabled} onClick={() => setActiveTab(index)} onKeyDown={event => moveTab(event, index)} className={`shrink-0 inline-flex min-h-11 items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400 disabled:opacity-50 ${activeTab === index ? 'border-orange-400 text-orange-400' : 'border-transparent text-slate-400 hover:text-strong'}`}>{group.title}<span className="text-xs tabular-nums">({group.accounts.length})</span></button>)}
+      {groups.map((group, index) => <button key={group.title} type="button" role="tab" id={`accounts-tab-${index}`} aria-controls={`accounts-panel-${index}`} aria-selected={activeTab === index} tabIndex={activeTab === index ? 0 : -1} disabled={disabled} onClick={() => selectTab(index)} onKeyDown={event => moveTab(event, index)} className={`shrink-0 inline-flex min-h-11 items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400 disabled:opacity-50 ${activeTab === index ? 'border-orange-400 text-orange-400' : 'border-transparent text-slate-400 hover:text-strong'}`}>{group.title}<span className="text-xs tabular-nums">({group.accounts.length})</span></button>)}
     </div>
-    <p className="text-xs text-slate-400">Counts reflect this search-result page. Enforcers includes applications awaiting approval.</p>
-    {groups.map((group, index) => <section key={group.title} role="tabpanel" id={`accounts-panel-${index}`} aria-labelledby={`accounts-tab-${index}`} aria-label={`${group.title} accounts`} hidden={activeTab !== index} tabIndex={0} className={`dx-card overflow-hidden ${activeTab !== index ? 'hidden' : ''}`}>
+    <p className="text-xs text-slate-400">Counts reflect all matching accounts in each tab. Enforcers includes applications awaiting approval.</p>
+    {groups.map((group, index) => {
+      const offset = Math.min(pageIndex, Math.max(0, Math.ceil(group.accounts.length / 50) - 1)) * 50
+      const visible = group.accounts.slice(offset, offset + 50)
+      return <section key={group.title} role="tabpanel" id={`accounts-panel-${index}`} aria-labelledby={`accounts-tab-${index}`} aria-label={`${group.title} accounts`} hidden={activeTab !== index} tabIndex={0} className={`dx-card overflow-hidden ${activeTab !== index ? 'hidden' : ''}`}>
       <h2 className="font-semibold px-5 py-4 border-b border-darkBorder flex items-center gap-2">{group.title} <span className="text-xs font-medium text-slate-400">({group.accounts.length})</span></h2>
-      {group.accounts.length ? <AccountsTable accounts={group.accounts} onEdit={onEdit} onView={onView} disabled={disabled} /> : <p className="px-5 py-6 text-sm text-slate-400">No {group.title.toLowerCase()} on this page.</p>}
-    </section>)}
+      {group.accounts.length ? <AccountsTable accounts={visible} onEdit={onEdit} onView={onView} disabled={disabled} /> : <p className="px-5 py-6 text-sm text-slate-400">No matching {group.title.toLowerCase()}.</p>}
+      <nav aria-label={`${group.title} pagination`} className="flex gap-3 text-sm items-center px-5 py-4 border-t border-darkBorder">
+        <button type="button" disabled={offset === 0 || disabled} onClick={() => setPageIndex(offset / 50 - 1)} className="disabled:opacity-40">Previous</button>
+        <span role="status">{group.accounts.length ? `${offset + 1}–${offset + visible.length} of ${group.accounts.length}` : '0 accounts'}</span>
+        <button type="button" disabled={offset + visible.length >= group.accounts.length || disabled} onClick={() => setPageIndex(offset / 50 + 1)} className="disabled:opacity-40">Next</button>
+      </nav>
+    </section>})}
   </div>
 }
 

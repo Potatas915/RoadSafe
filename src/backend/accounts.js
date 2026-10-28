@@ -34,6 +34,17 @@ export async function loadAccounts(client, search = '', offset = 0) {
   if (error) throw error
   return parseAccounts(data)
 }
+export async function loadAccountSearch(client, search = '') {
+  const accounts = new Map()
+  let offset = 0
+  while (true) {
+    const page = await loadAccounts(client, search, offset)
+    for (const account of page.data) accounts.set(account.id, account)
+    offset += page.data.length
+    if (offset >= page.total) return { data: [...accounts.values()], total: accounts.size }
+    if (!page.data.length) throw new Error('Account list changed. Refresh and try again.')
+  }
+}
 export async function saveAccount(client, account, patch, reason) {
   const { data, error } = await client.rpc('manage_account', {
     p_id: account.id, p_name: patch.name.trim(), p_responder_type: patch.responderType,
