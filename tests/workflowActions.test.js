@@ -35,7 +35,8 @@ function setup(status, extra = {}, props = {}) {
   const button = label => find(render(), node => node.type === 'button' && node.props.children === label)
   const submit = () => find(render(), node => node.type === 'form').props.onSubmit({ preventDefault() {} })
   const input = label => find(render(), node => node.props['aria-label'] === label)
-  return { report, saves, render, button, submit, input }
+  const remarks = () => find(render(), node => node.type === 'textarea' && node.props.value !== undefined && !node.props['aria-label'])
+  return { report, saves, render, button, submit, input, remarks }
 }
 
 test('starting and resuming shared Admin review saves immediately and keeps the workspace open', async () => {
@@ -103,4 +104,19 @@ test('Officer verification is an explicit action and assigned progress remains s
   const assigned = setup('Assigned', { assignedOfficerId: 'officer-mark' }, { actorRole: 'Officer', viewerId: 'officer-mark' })
   assert.ok(assigned.button('Start responding'))
   assert.equal(assigned.button('Return to review'), null)
+})
+
+test('official remarks start empty and clear after success without deleting saved remarks', async () => {
+  const ui = setup('Under Review', { officialRemarks: 'Return to review: Subject to review' })
+  assert.equal(ui.remarks().props.value, '')
+  await ui.submit()
+  assert.equal(ui.saves[0][1].officialRemarks, ui.report.officialRemarks)
+  ui.remarks().props.onChange({ target: { value: 'New observation' } })
+  await ui.submit()
+  assert.equal(ui.saves[1][1].officialRemarks, 'New observation')
+  assert.equal(ui.remarks().props.value, '')
+  const failed = setup('Under Review', {}, { onSave: async () => { throw Error('Save failed') } })
+  failed.remarks().props.onChange({ target: { value: 'Keep this draft' } })
+  await failed.submit()
+  assert.equal(failed.remarks().props.value, 'Keep this draft')
 })

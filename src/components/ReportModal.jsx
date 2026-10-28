@@ -26,7 +26,7 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
   const returningToReview = status === REPORT_STATUS.UNDER_REVIEW && ['Verified', 'Assigned', 'In Progress'].includes(report.status)
   const assignedOfficerId = report.assignedOfficerId ?? ''
   const assignedEnforcer = users.find(user => user.id === assignedOfficerId)
-  const [officialRemarks, setRemarks] = useState(report.officialRemarks)
+  const [officialRemarks, setRemarks] = useState('')
   const [rejectionReason, setReason] = useState(report.rejectionReason ?? '')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -45,8 +45,9 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
     if (returningToReview && !reviewReason.trim()) { setError('Provide a reason for returning this case to review.'); return }
     if (nextStatus === REPORT_STATUS.REJECTED && !rejectionReason.trim()) { setError('Provide a rejection reason.'); return }
     setSaving(true); setError('')
-    const remarks = returningToReview ? `${officialRemarks.trim()}\nReturn to review: ${reviewReason.trim()}`.trim() : officialRemarks
-    try { await onSave(report.id, { status: nextStatus, assignedOfficerId: returningToReview ? null : assignedOfficerId || null, officialRemarks: remarks, rejectionReason: rejectionReason.trim() || null }, { keepOpen: nextStatus === REPORT_STATUS.UNDER_REVIEW && ['Submitted', 'Additional Information Required'].includes(report.status) }) }
+    const savedRemarks = officialRemarks.trim() ? officialRemarks : report.officialRemarks ?? ''
+    const remarks = returningToReview ? `${savedRemarks.trim()}\nReturn to review: ${reviewReason.trim()}`.trim() : savedRemarks
+    try { await onSave(report.id, { status: nextStatus, assignedOfficerId: returningToReview ? null : assignedOfficerId || null, officialRemarks: remarks, rejectionReason: rejectionReason.trim() || null }, { keepOpen: nextStatus === REPORT_STATUS.UNDER_REVIEW && ['Submitted', 'Additional Information Required'].includes(report.status) }); setRemarks('') }
     catch (failure) { setError(failure.message) }
     finally { setSaving(false) }
   }
