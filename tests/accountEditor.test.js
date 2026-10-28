@@ -182,7 +182,7 @@ function viewHarness(loadAccounts) {
   const hooks = { ...React, useState(initial) { const i = cursor++; if (!(i in states)) states[i] = initial; return [states[i], value => { states[i] = typeof value === 'function' ? value(states[i]) : value }] }, useRef(initial) { const i = cursor++; return states[i] ??= { current: initial } }, useCallback: callback => callback, useEffect(effect) { effects.push(effect) } }
   const module = { exports: {} }
   const Editor = () => null
-  vm.runInNewContext(transformSync(readFileSync(new URL('../src/components/AccountsView.jsx', import.meta.url), 'utf8'), { loader: 'jsx', jsx: 'automatic', format: 'cjs' }).code, { module, exports: module.exports, require: name => name === 'react' ? hooks : name === '../backend/accounts.js' ? { loadAccounts, loadAccountStations: async () => [], saveAccount: async () => {} } : name === './AccountEditor.jsx' ? { __esModule: true, default: Editor } : require(name) })
+  vm.runInNewContext(transformSync(readFileSync(new URL('../src/components/AccountsView.jsx', import.meta.url), 'utf8'), { loader: 'jsx', jsx: 'automatic', format: 'cjs' }).code, { module, exports: module.exports, require: name => name === 'react' ? hooks : name === '../backend/accounts.js' ? { loadAccounts, loadAccountStations: async () => [], saveAccount: async () => {} } : name === './AccountEditor.jsx' ? { __esModule: true, default: Editor } : name === './AccountDetails.jsx' ? { __esModule: true, default: () => null } : require(name) })
   const render = () => { cursor = 0; effects = []; const tree = module.exports.default({ client: {} }); render.effects = effects; return tree }
   render.Editor = Editor
   return render

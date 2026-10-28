@@ -63,7 +63,7 @@ test('Admin sees pending enforcer applications and verification instructions', (
 function component(path, extraRequire, globals = {}) {
   const url = new URL(path, import.meta.url), module = { exports: {} }, require = createRequire(fileURLToPath(url))
   vm.runInNewContext(transformSync(readFileSync(url, 'utf8'), { loader: 'jsx', jsx: 'automatic', format: 'cjs' }).code,
-    { module, exports: module.exports, require: name => extraRequire?.(name) ?? (name === './AccountEditor.jsx' ? { default: component('../src/components/AccountEditor.jsx').default, __esModule: true } : require(name)), ...globals })
+    { module, exports: module.exports, require: name => extraRequire?.(name) ?? (['./AccountEditor.jsx', './AccountDetails.jsx'].includes(name) ? { default: component('../src/components/' + name.slice(2)).default, __esModule: true } : require(name)), ...globals })
   return module.exports
 }
 test('only enabled Admin and Officer accounts pass the staff gate', () => {
@@ -230,4 +230,22 @@ test('account tabs show one group and support keyboard switching', () => {
   tabs[1].props.onKeyDown({ key: 'ArrowRight', preventDefault() {}, currentTarget: { parentElement: { querySelectorAll: () => [0,1,2].map(index => ({ focus() { focused = index } })) } } })
   assert.equal(active, 2)
   assert.equal(focused, 2)
+})
+
+test('account management offers a separate details action for users and enforcers', () => {
+  const { AccountsTable } = component('../src/components/AccountsView.jsx')
+  const html = renderToStaticMarkup(React.createElement(AccountsTable, { accounts: [account, { ...account, id: 'resident', role: 'Public' }], onView() {} }))
+  assert.equal((html.match(/>View details</g) ?? []).length, 2)
+  assert.equal((html.match(/>Edit account</g) ?? []).length, 2)
+})
+
+test('account details show saved identity, approval and station without placeholder units', () => {
+  const Details = component('../src/components/AccountDetails.jsx').default
+  const render = data => renderToStaticMarkup(React.createElement(Details, { account: data }))
+  const officer = render({ ...account, unit: 'Unassigned', station: { name: '<Station>', address: 'Bulacan' } })
+  for (const text of ['Account details', 'officer-id', 'officer_name', 'Approved', 'Active', '&lt;Station&gt;', 'Bulacan', 'Not specified']) assert.ok(officer.includes(text), text)
+  assert.ok(!officer.includes('Unassigned'))
+  assert.match(render({ ...account, role: 'Public', requestedAccountType: 'Officer', enabled: false }), /Awaiting verification/)
+  assert.match(render({ ...account, role: 'Public', enabled: false }), /Suspended/)
+  assert.doesNotMatch(render({ ...account, role: 'Public' }), /<dt[^>]*>Station</)
 })

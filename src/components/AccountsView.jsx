@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import AccountEditor from './AccountEditor.jsx'
+import AccountDetails from './AccountDetails.jsx'
 export { default as AccountEditor } from './AccountEditor.jsx'
 import { loadAccounts, loadAccountStations, saveAccount } from '../backend/accounts.js'
 
@@ -9,6 +10,7 @@ export default function AccountsView({ client, currentUserId, initialSearch = ''
   const [search, setSearch] = useState(initialSearch)
   const [offset, setOffset] = useState(0)
   const [selected, setSelected] = useState(null)
+  const [viewed, setViewed] = useState(null)
   const [selectedReload, setSelectedReload] = useState(0)
   const returnFocusRef = useRef(null)
   const [error, setError] = useState('')
@@ -63,14 +65,15 @@ export default function AccountsView({ client, currentUserId, initialSearch = ''
     {error && <p role="alert" className="text-red-300">{error} Refresh before retrying a stale edit.</p>}
     {message && <p role="status" className="text-emerald-300">{message}</p>}
     {loading && <p role="status">Loading accounts…</p>}
-    <AccountGroups accounts={page.data} onEdit={edit} disabled={saving || loading} initialTab={initialSearch ? 1 : 0} />
+    <AccountGroups accounts={page.data} onEdit={edit} onView={(account, trigger) => { returnFocusRef.current = trigger; setViewed(account) }} disabled={saving || loading} initialTab={initialSearch ? 1 : 0} />
     {!loading && !page.data.length && <p>No matching accounts.</p>}
     <div className="flex gap-3 text-sm items-center"><button disabled={offset === 0 || loading || saving} onClick={() => { setSelected(null); setOffset(offset - 50) }}>Previous</button><span>{page.total ? `${offset + 1}–${offset + page.data.length} of ${page.total}` : '0 accounts'}</span><button disabled={offset + 50 >= page.total || loading || saving} onClick={() => { setSelected(null); setOffset(offset + 50) }}>Next</button></div>
+    {viewed && <AccountDetails account={viewed} onClose={() => setViewed(null)} returnFocusRef={returnFocusRef} />}
     {selected && <AccountEditor key={`${selected.id}:${selected.version}:${selectedReload}`} account={selected} currentUserId={currentUserId} onSave={save} onCancel={() => setSelected(null)} saving={saving} error={editError} stale={stale} onReload={reloadSelected} loadStations={stationLoader} returnFocusRef={returnFocusRef} />}
   </main>
 }
 
-export function AccountGroups({ accounts, onEdit, disabled, initialTab = 0 }) {
+export function AccountGroups({ accounts, onEdit, onView, disabled, initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab)
   const groups = [
     { title: 'Users', accounts: accounts.filter(account => account.role === 'Public' && account.requestedAccountType !== 'Officer') },
@@ -91,12 +94,12 @@ export function AccountGroups({ accounts, onEdit, disabled, initialTab = 0 }) {
     <p className="text-xs text-slate-400">Counts reflect this search-result page. Enforcers includes applications awaiting approval.</p>
     {groups.map((group, index) => <section key={group.title} role="tabpanel" id={`accounts-panel-${index}`} aria-labelledby={`accounts-tab-${index}`} aria-label={`${group.title} accounts`} hidden={activeTab !== index} tabIndex={0} className={`dx-card overflow-hidden ${activeTab !== index ? 'hidden' : ''}`}>
       <h2 className="font-semibold px-5 py-4 border-b border-darkBorder flex items-center gap-2">{group.title} <span className="text-xs font-medium text-slate-400">({group.accounts.length})</span></h2>
-      {group.accounts.length ? <AccountsTable accounts={group.accounts} onEdit={onEdit} disabled={disabled} /> : <p className="px-5 py-6 text-sm text-slate-400">No {group.title.toLowerCase()} on this page.</p>}
+      {group.accounts.length ? <AccountsTable accounts={group.accounts} onEdit={onEdit} onView={onView} disabled={disabled} /> : <p className="px-5 py-6 text-sm text-slate-400">No {group.title.toLowerCase()} on this page.</p>}
     </section>)}
   </div>
 }
 
-export function AccountsTable({ accounts, onEdit, disabled }) {
+export function AccountsTable({ accounts, onEdit, onView, disabled }) {
   const showStation = accounts.some(account => account.role === 'Officer' || (account.role === 'Public' && account.requestedAccountType === 'Officer'))
   const columns = showStation ? [30, 25, 22, 10, 13] : [38, 30, 14, 18]
   const cell = 'px-5 py-4 align-middle'
@@ -108,7 +111,7 @@ export function AccountsTable({ accounts, onEdit, disabled }) {
       {showStation && <td className={cell}><p className="break-words">{account.station?.name ?? '—'}</p>{account.station?.address && <p className="mt-1 text-xs leading-relaxed text-slate-400 break-words">{account.station.address}</p>}</td>}
       <td className={`${cell} leading-relaxed`}>{account.role === 'Admin' ? 'Administrator' : account.role === 'Officer' ? 'Enforcer — Officer access' : 'Public user'}{account.role === 'Officer' && <p className="mt-1 text-xs text-emerald-300">Approved</p>}{account.requestedAccountType === 'Officer' && account.role === 'Public' && <p className="mt-1 text-xs text-orange-300">Awaiting verification</p>}</td>
       <td className={`${cell} whitespace-nowrap`}>{account.enabled ? 'Active' : 'Suspended'}</td>
-      <td className={`${cell} text-center`}><button disabled={disabled} onClick={event => onEdit(account, event.currentTarget)} className="inline-flex min-h-9 items-center justify-center rounded-lg border border-orange-400/20 px-3 py-2 text-xs font-medium leading-snug text-orange-300 hover:bg-orange-400/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400 disabled:opacity-50">{account.role === 'Public' && account.requestedAccountType === 'Officer' ? 'Review application' : 'Edit account'}</button></td>
+      <td className={`${cell} text-center`}><div className="flex flex-col items-center gap-2"><button type="button" disabled={disabled} onClick={event => onView(account, event.currentTarget)} className="inline-flex min-h-9 items-center justify-center rounded-lg border border-darkBorder px-3 py-2 text-xs font-medium text-strong hover:bg-edge/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400 disabled:opacity-50">View details</button><button disabled={disabled} onClick={event => onEdit(account, event.currentTarget)} className="inline-flex min-h-9 items-center justify-center rounded-lg border border-orange-400/20 px-3 py-2 text-xs font-medium leading-snug text-orange-300 hover:bg-orange-400/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400 disabled:opacity-50">{account.role === 'Public' && account.requestedAccountType === 'Officer' ? 'Review application' : 'Edit account'}</button></div></td>
     </tr>)}</tbody>
   </table></div>
 }
