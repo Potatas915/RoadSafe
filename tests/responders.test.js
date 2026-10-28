@@ -222,3 +222,12 @@ test('demo and shared requests persist independently and restore their route sna
   assert.equal(state.shared.activeRequests.length, 0)
   assert.equal(state.demo.activeRequests.length, 1)
 })
+
+test('station scene identifies the report with a compact reference and full ID tooltip', () => {
+  const reportId = '3c2965d6-d930-4067-b0d8-9b3148af32c4'
+  const html = render({ scene: { ...scene, reportId } })
+  assert.match(html, />Report ID</)
+  assert.ok(html.includes(`title="${reportId}"`))
+  assert.match(html, />\s*#3c2965d6\s*</)
+  assert.ok(!html.includes(`>${reportId}<`))
+})

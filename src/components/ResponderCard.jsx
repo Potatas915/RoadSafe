@@ -139,11 +139,11 @@ export default function ResponderCard({
             )}
           </div>
           <div className="bg-darkBg p-3 rounded-xl border border-darkBorder space-y-1">
-            <span className={label}>Scene</span>
+            <span className={label}>Report ID</span>
             {hasScene ? (
               <>
-                <p className="font-mono text-orange-400 font-bold text-[11px] break-all">
-                  {activeScene.reportId}
+                <p title={activeScene.reportId} className="font-mono text-orange-400 font-bold text-[11px] whitespace-nowrap">
+                  #{activeScene.reportId.length > 16 ? activeScene.reportId.slice(0, 8) : activeScene.reportId}
                 </p>
                 <p className="text-slate-400 text-[11px]">{activeScene.label}</p>
               </>
