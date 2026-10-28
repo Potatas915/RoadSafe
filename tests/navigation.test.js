@@ -47,6 +47,11 @@ test('all operational views share one backend report feed and newly loaded repor
     return null
   }
   let tree = render()
+  find(tree, 'TopBar').props.onOpenNotificationReport(null, 'registered-account-id')
+  tree = render()
+  assert.equal(find(tree, 'AccountsView').props.initialSearch ?? '', '', 'account notifications must not prefill an account ID search')
+  find(tree, 'Sidebar').props.onChange('map-view')
+  tree = render()
   const reports = find(tree, 'MapView').props.reportRecords
   assert.equal(find(tree, 'MapView').props.enforcerClient, client)
   assert.equal(find(tree, 'select'), null)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { reportNotifications, notificationStorageKey, loadReadNotifications } from '../models/notifications.js'
+import { reportNotifications, notificationStorageKey, loadReadNotifications, mergeNotifications } from '../models/notifications.js'
 import { loadEnforcerNotifications } from '../backend/accounts.js'
 
 const browserStorage = () => { try { return window.localStorage } catch { return null } }
@@ -40,8 +40,7 @@ export default function useNotifications(reports, accountId, adminClient = null)
     return () => window.removeEventListener('storage', sync)
   }, [key])
   const notifications = useMemo(() => {
-    const read = new Set(readIds)
-    return [...registrations, ...reportNotifications(reports)].map((item) => ({ ...item, read: read.has(item.id) }))
+    return mergeNotifications(registrations, reportNotifications(reports), readIds)
   }, [reports, readIds, registrations])
   const markRead = useCallback((ids) => {
     // Merge the latest browser value to avoid discarding reads from other tabs.

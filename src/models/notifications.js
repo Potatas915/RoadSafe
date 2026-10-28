@@ -5,9 +5,10 @@ import { REPORT_STATUS } from './report.js'
 export function reportNotifications(reports) {
   const notifications = []
   for (const report of reports) {
-    const reference = report.reference || report.id
+    const id = report.reference || report.id
+    const reference = `#${id.length > 16 ? id.slice(0, 8) : id}`
     notifications.push({ id: `submission:${report.id}`, reportId: report.id,
-      title: 'Submission confirmed', message: `${reference}: accident report received and awaiting review.`,
+      title: 'New accident report', message: `${reference}: accident report received and awaiting review.`,
       createdAt: report.submittedAt })
     let previousStatus = REPORT_STATUS.SUBMITTED
     const events = [...(report.events ?? [])].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true }))
@@ -26,6 +27,14 @@ export function reportNotifications(reports) {
 
 export function notificationStorageKey(accountId) {
   return `roadsafe:notifications:read:v1:${accountId}`
+}
+
+export function mergeNotifications(registrations, reports, readIds) {
+  const read = new Set(readIds)
+  const timestamp = item => Date.parse(item.createdAt) || 0
+  return [...registrations, ...reports]
+    .sort((a, b) => timestamp(b) - timestamp(a) || b.id.localeCompare(a.id))
+    .map(item => ({ ...item, read: read.has(item.id) }))
 }
 
 export function enforcerNotifications(accounts) {

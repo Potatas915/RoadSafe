@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { reportNotifications, enforcerNotifications, notificationStorageKey, loadReadNotifications } from '../src/models/notifications.js'
+import { reportNotifications, enforcerNotifications, notificationStorageKey, loadReadNotifications, mergeNotifications } from '../src/models/notifications.js'
 import { loadEnforcerNotifications } from '../src/backend/accounts.js'
 
 test('enforcer registrations produce stable account notifications, excluding public users', async () => {
@@ -36,12 +36,38 @@ const report = { id: 'report-1', submittedAt, events: [
   { id: 5, type: 'review_updated', status: 'Verified', createdAt: '2026-10-18T00:03:00Z' },
 ] }
 
+test('notification messages shorten UUIDs while keeping full navigation and notification IDs', () => {
+  const id = 'b2714bfc-a641-4251-b2be-2d1765c171dd'
+  const items = reportNotifications([{ ...report, id }])
+  for (const item of items) {
+    assert.match(item.message, /^#b2714bfc:/)
+    assert.ok(!item.message.includes(id))
+    assert.equal(item.reportId, id)
+    assert.ok(item.id.includes(id))
+  }
+  assert.match(reportNotifications([{ ...report, id: 'R-123' }])[0].message, /^#R-123:/)
+})
+
+test('new mobile reports surface above registrations and remain unread after feed refresh', () => {
+  const registrations = [{ id: 'enforcer-registration:old', title: 'Enforcer account created' }]
+  const oldReports = reportNotifications([report])
+  const readIds = [...oldReports.map(item => item.id), registrations[0].id]
+  const incoming = { id: 'new-mobile-report', submittedAt: '2026-10-28T01:00:00Z', events: [] }
+  const items = mergeNotifications(registrations, reportNotifications([report, incoming]), readIds)
+  assert.equal(items[0].reportId, incoming.id)
+  assert.equal(items[0].title, 'New accident report')
+  assert.equal(items[0].read, false)
+  assert.equal(items.at(-1).id, registrations[0].id)
+  assert.equal(items.filter(item => !item.read).length, 1)
+  assert.deepEqual(mergeNotifications(registrations, reportNotifications([report, incoming]), readIds), items)
+})
+
 test('one confirmation per report and genuine status transitions, including offline history', () => {
   const items = reportNotifications([report])
   assert.equal(items.length, 3)
   assert.match(items[0].message, /Under Review → Verified/)
   assert.match(items[1].message, /Submitted → Under Review/)
-  assert.equal(items[2].title, 'Submission confirmed')
+  assert.equal(items[2].title, 'New accident report')
   assert.equal(items[2].reportId, report.id)
   assert.deepEqual(reportNotifications(structuredClone([report])), items, 'polling must preserve IDs and ordering')
   assert.equal(report.events[0].id, 1, 'input history is not mutated')
