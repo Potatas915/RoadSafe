@@ -249,3 +249,14 @@ test('account details show saved identity, approval and station without placehol
   assert.match(render({ ...account, role: 'Public', enabled: false }), /Suspended/)
   assert.doesNotMatch(render({ ...account, role: 'Public' }), /<dt[^>]*>Station</)
 })
+
+test('all account types use compact IDs in details while retaining the full tooltip', () => {
+  const Details = component('../src/components/AccountDetails.jsx').default
+  const id = '64e54f13-24d0-4041-a7ef-e9788145f69b'
+  for (const role of ['Public', 'Officer', 'Admin']) {
+    const html = renderToStaticMarkup(React.createElement(Details, { account: { ...account, id, role } }))
+    assert.ok(html.includes(`title="${id}"`))
+    assert.match(html, />#64e54f13<\/dd>/)
+    assert.ok(!html.includes(`>${id}<`))
+  }
+})
