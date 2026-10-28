@@ -324,7 +324,7 @@ export default function MapView({ searchLocation, reportRecords, users = [], onO
     REPORT_TYPES.map((type) => type.id),
   );
 
-  const mapRecords = useMemo(() => reportRecords.filter(report => report.status !== 'Resolved / Closed'), [reportRecords]);
+  const mapRecords = useMemo(() => reportRecords.filter(report => !['Resolved / Closed', 'Rejected'].includes(report.status)), [reportRecords]);
   const [includePending, setIncludePending] = useState(true);
   const { theme: mapTheme } = useTheme();
   const viewRef = useRef(null);

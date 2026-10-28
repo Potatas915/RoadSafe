@@ -8,6 +8,7 @@ import vm from 'node:vm'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { hasActiveOfficer } from '../src/data/responders.js'
+import { applyDuplicateReview } from '../src/models/reportDuplicates.js'
 
 const source = name => readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8')
 
@@ -40,6 +41,23 @@ test('closing an incident removes it from map records without removing report hi
   assert.equal(records.length, 2, 'Closed incident must remain in report history')
   records[0] = active
   assert.equal(mapRecords().length, 2, 'A reopened incident becomes visible again')
+})
+
+test('rejected and duplicate-rejected incidents leave the map while preserving history', () => {
+  const expression = source('components/MapView.jsx').match(/const mapRecords = ([^;]+);/)[1]
+  const original = { id: 'original', status: 'Verified' }
+  const review = { id: 'review', status: 'Under Review' }
+  const duplicate = applyDuplicateReview([original, review], review.id, original.id, 'Same incident', { id: 'admin', role: 'Admin' })
+  assert.equal(duplicate.status, 'Rejected')
+  for (const rejected of [{ ...review, status: 'Rejected' }, duplicate]) {
+    const records = [original, rejected]
+    const visible = vm.runInNewContext(expression, {
+      reportRecords: records, useMemo: callback => callback(),
+    })
+    assert.equal(visible.length, 1)
+    assert.equal(visible[0], original)
+    assert.equal(records.length, 2, 'Rejected records remain in report history')
+  }
 })
 
 test('both map sources require assignment before starting a route', () => {
