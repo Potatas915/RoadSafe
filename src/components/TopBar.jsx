@@ -28,7 +28,7 @@ export default function TopBar({ live = false, notifications, unreadCount, onRea
         </div>}
         <button type="button" onClick={toggle} aria-pressed={dark} aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'} title={dark ? 'Switch to light theme' : 'Switch to dark theme'} className="w-9 h-9 rounded-full border border-edge/10 bg-edge/[0.05] text-slate-400 hover:text-strong hover:bg-edge/10 transition"><i className={`fa-solid ${dark ? 'fa-sun' : 'fa-moon'}`} aria-hidden="true" /></button>
         <NotificationBell live={live} notifications={notifications} unreadCount={unreadCount} onRead={onReadNotifications} onOpenReport={onOpenNotificationReport} storageWarning={notificationStorageWarning} />
-        {onSignOut && <button type="button" onClick={onSignOut} title="Log out of RoadSafe" className="flex h-9 items-center gap-2 rounded-full border border-edge/10 bg-edge/[0.05] px-3.5 text-xs font-medium text-slate-300 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300"><i className="fa-solid fa-arrow-right-from-bracket" aria-hidden="true" />Log out</button>}
+        {onSignOut && <button type="button" onClick={onSignOut} title="Log out of RoadTrack" className="flex h-9 items-center gap-2 rounded-full border border-edge/10 bg-edge/[0.05] px-3.5 text-xs font-medium text-slate-300 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300"><i className="fa-solid fa-arrow-right-from-bracket" aria-hidden="true" />Log out</button>}
       </div>
     </header>
   )

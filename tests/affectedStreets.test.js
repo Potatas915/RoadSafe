@@ -11,9 +11,9 @@ test('street segments are clipped to the marker circle, retaining bends without 
   const reports = {features:[{id:'r',geometry:{coordinates:[0,0]},properties:{caseColor:'#ff0000'}}]}
   const result = nearbyStreetFeatures(map,reports)
   assert.equal(result.features.length,2)
-  for (const feature of result.features) for (const [x,y] of feature.geometry.coordinates) assert.ok(Math.hypot(x,y)*111320<=150.01)
+  for (const feature of result.features) for (const [x,y] of feature.geometry.coordinates) assert.ok(Math.hypot(x,y)*111320<=75.01)
   assert.deepEqual(nearbyStreetFeatures({...map,getZoom:()=>13},reports),result, 'zooming out must not expand or change the clipped geographic street segments')
-  const outsideRoad = {geometry:{type:'LineString',coordinates:[[-.003,.002],[.003,.002]]}}
-  assert.equal(nearbyStreetFeatures({...map,queryRenderedFeatures:()=>[outsideRoad]},reports).features.length,0, 'a street beyond 150m stays excluded even if returned by a lower zoom tile')
+  const outsideRoad = {geometry:{type:'LineString',coordinates:[[-.003,.001],[.003,.001]]}}
+  assert.equal(nearbyStreetFeatures({...map,queryRenderedFeatures:()=>[outsideRoad]},reports).features.length,0, 'a street between 75m and the former 150m boundary stays excluded')
   assert.equal(nearbyStreetFeatures({...map,getZoom:()=>12},reports).features.length,0)
 })

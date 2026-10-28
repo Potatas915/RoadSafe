@@ -157,9 +157,9 @@ test('actual station panel escapes names, excludes offline/busy officers and blo
   const url = new URL('../src/components/StationEnforcers.jsx', import.meta.url)
   const require = createRequire(url)
   const rows = [
-    { id: 'ready', name: '<Ready>', unit: 'Unit', online: true, onDuty: true, busy: false },
+    { id: 'ready', name: '<Ready>', unit: 'Unassigned', online: true, onDuty: true, busy: false },
     { id: 'offline', name: 'Offline Officer', online: false, onDuty: true, busy: false },
-    { id: 'busy', name: 'Busy Officer', online: true, onDuty: true, busy: true },
+    { id: 'busy', name: 'Busy Officer', online: false, onDuty: false, busy: true },
   ]
   function render(report) {
     const state = [rows, 'ready', '', '', false, false, 0]
@@ -183,6 +183,8 @@ test('actual station panel escapes names, excludes offline/busy officers and blo
   const assigned = render({ status: 'In Progress', assignedOfficerId: 'ready' })
   assert.match(assigned, /Assigned enforcer: &lt;Ready&gt;/)
   assert.match(assigned, /Case status: In Progress/)
+  assert.doesNotMatch(assigned, /· Unassigned/)
+  assert.match(assigned, /Assigned case · Offline/)
   assert.ok(!assigned.includes('aria-label="Assign station enforcer"'))
   assert.ok(!assigned.includes('Assign to selected accident'))
 })

@@ -14,6 +14,16 @@ import { parseReportsResponse } from '../src/models/report.js'
 
 const account = { id: 'officer-id', name: '<Officer>', unit: 'Unit 1', responderType: 'police', role: 'Officer', enabled: true, version: 3, username: 'officer_name' }
 const fixture = () => ({ ...structuredClone(reportsResponse.data[0]), status: 'Submitted', assignedOfficerId: null, verification: { verifiedAt: null, verifiedBy: null }, isDuplicate: false })
+
+test('account identity shows name, username and compact user ID without labels', () => {
+  const { AccountsTable } = component('../src/components/AccountsView.jsx')
+  const id = '64e54f13-24d0-4041-a7ef-e9788145f69b'
+  const html = renderToStaticMarkup(React.createElement(AccountsTable, { accounts: [{ ...account, id }] }))
+  assert.match(html, /&lt;Officer&gt;<\/p>[\s\S]*officer_name<\/p>[\s\S]*#64e54f13<\/p>/)
+  assert.doesNotMatch(html, /Full name|Username|User ID/)
+  assert.ok(html.includes(`title="${id}">#64e54f13</p>`))
+  assert.ok(!html.includes(`>${id}<`))
+})
 test('account groups separate public users, enforcers and administrators including pending applicants', () => {
   const { AccountGroups } = component('../src/components/AccountsView.jsx')
   const accounts = [

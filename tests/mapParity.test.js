@@ -11,6 +11,37 @@ import { hasActiveOfficer } from '../src/data/responders.js'
 
 const source = name => readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8')
 
+test('cancelled assignments exclude retained station requests and routes', () => {
+  const map = source('components/MapView.jsx')
+  const expression = map.match(/const activeRequests = useMemo\(\(\) => ([\s\S]*?), \[responders.activeRequests, mapRecords\]\)/)[1]
+  const entry = { station: { responderType: 'police' }, request: { reportId: 'case' } }
+  const active = { id: 'case', status: 'Assigned', assignedOfficerId: 'officer' }
+  const evaluate = report => vm.runInNewContext(expression, {
+    responders: { activeRequests: [entry] }, mapRecords: [report], hasActiveOfficer,
+  })
+  assert.equal(evaluate(active).length, 1)
+  assert.equal(evaluate({ ...active, status: 'Verified', assignedOfficerId: null }).length, 0)
+  assert.equal(evaluate({ ...active, status: 'Resolved / Closed', assignedOfficerId: null }).length, 0)
+})
+
+test('closing an incident removes it from map records without removing report history', () => {
+  const expression = source('components/MapView.jsx').match(/const mapRecords = ([^;]+);/)[1]
+  const active = { id: 'active-case', status: 'In Progress' }
+  const other = { id: 'submitted-case', status: 'Submitted' }
+  const records = [active, other]
+  const mapRecords = () => vm.runInNewContext(expression, {
+    reportRecords: records, useMemo: callback => callback(),
+  })
+  assert.equal(mapRecords().length, 2)
+  records[0] = { ...active, status: 'Resolved / Closed', assignedOfficerId: null }
+  const visible = mapRecords()
+  assert.equal(visible.length, 1)
+  assert.equal(visible[0], other)
+  assert.equal(records.length, 2, 'Closed incident must remain in report history')
+  records[0] = active
+  assert.equal(mapRecords().length, 2, 'A reopened incident becomes visible again')
+})
+
 test('both map sources require assignment before starting a route', () => {
   const map = source('components/MapView.jsx')
   const callback = map.match(/onDispatch=\{(\(station, feature\) => \{[\s\S]*?)\}\} \/>/)[1]

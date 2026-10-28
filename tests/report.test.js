@@ -24,6 +24,29 @@ function component(relative) {
 const ReportModal = component('../src/components/ReportModal.jsx')
 const ReportsView = component('../src/components/ReportsView.jsx')
 
+test('original report options show compact references but retain full selection IDs', () => {
+  const id = 'b2714bfc-a641-4251-b2be-2d1765c171dd'
+  const original = { ...second, id, status: 'Verified', isDuplicate: false }
+  const html = renderToStaticMarkup(React.createElement(ReportModal, {
+    report: first, reports: [first, original], users: reportsResponse.included.users,
+    onDuplicate() {},
+  }))
+  assert.ok(html.includes(`value="${id}" title="${id}">#b2714bfc ·`))
+  assert.ok(!html.includes(`>${id} ·`))
+})
+
+test('duplicate review flags nearby originals as possible matches without preselecting', () => {
+  const location = { coordinates: { latitude: 14.8, longitude: 120.9 }, address: 'Nearby road' }
+  const report = { ...first, location, status: 'Under Review', isDuplicate: false }
+  const original = { ...second, location, status: 'Verified', isDuplicate: false }
+  const html = renderToStaticMarkup(React.createElement(ReportModal, {
+    report, reports: [report, original], users: reportsResponse.included.users, onDuplicate() {},
+  }))
+  assert.match(html, /Possible duplicates nearby: 1 within 75 m/)
+  assert.match(html, /Possible duplicate \(nearby\)/)
+  assert.match(html, /value="" selected="">Choose original report/)
+})
+
 test('map severity uses index units and separates description from structured scoring', () => {
   const Card = component('../src/components/MapReportCard.jsx')
   const report = { ...first, categoryId: 'pedestrian', description: 'Blue car and white bicycle and another unknown vehicle', injuries: { status: 'none', injuredCount: 0, fatalityCount: 0 }, vehicles: [{ type: 'car', count: 1 }, { type: 'bicycle', count: 1 }, { type: 'unknown', count: 1 }] }

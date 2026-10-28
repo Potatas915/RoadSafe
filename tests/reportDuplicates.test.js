@@ -1,12 +1,22 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { reportsResponse } from '../src/data/reports.js'
-import { applyDuplicateReview, duplicateOriginals } from '../src/models/reportDuplicates.js'
+import { applyDuplicateReview, duplicateOriginals, nearbyDuplicateCandidates } from '../src/models/reportDuplicates.js'
 import { validateReport, updateReport } from '../src/models/report.js'
 import { saveReportDuplicate } from '../src/backend/reports.js'
 
 const actor = reportsResponse.included.users.find(user => user.role === 'Admin')
 const records = () => structuredClone(reportsResponse.data)
+
+test('possible duplicate suggestions use the 75m glow without changing reports', () => {
+  const source = { ...records()[0], id: 'source', location: { coordinates: { latitude: 0, longitude: 0 } } }
+  const candidate = (id, latitude, extra = {}) => ({ ...source, id, location: { coordinates: { latitude, longitude: 0 } }, ...extra })
+  const reports = [source, candidate('near', 0.0005), candidate('outside', 0.001), candidate('duplicate', 0, { isDuplicate: true }), candidate('rejected', 0, { status: 'Rejected' }), { ...source, id: 'missing', location: {} }]
+  const before = structuredClone(reports)
+  assert.deepEqual(nearbyDuplicateCandidates(reports, source).map(r => r.id), ['near'])
+  assert.deepEqual(reports, before)
+  assert.deepEqual(nearbyDuplicateCandidates(reports, { ...source, location: {} }), [])
+})
 
 test('duplicate preview retains source details, audits original/actor, and clears back to review', () => {
   const reports = records(), source = reports[0], original = reports[1]

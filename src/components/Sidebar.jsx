@@ -29,10 +29,10 @@ export default function Sidebar({ view, onChange, pendingCount, currentUser, liv
     <aside data-collapsed={collapsed} className={`relative ${collapsed ? 'w-[76px]' : 'w-64'} shrink-0 bg-shell/80 backdrop-blur-2xl border-r border-edge/[0.08] flex flex-col justify-between z-30 shadow-2xl transition-[width] duration-300 ease-out`}>
       <div>
         <div className={`h-14 flex items-center border-b border-edge/[0.08] ${collapsed ? 'justify-center' : 'px-4 gap-3'}`}>
-          <img src={`/brand/roadsafe-logo-${theme}.png`} alt="RoadSafe" width="36" height="36" className="w-9 h-9 shrink-0 rounded-[10px] shadow-lg shadow-orange-500/15 ring-1 ring-edge/10" />
+          <img src={`/brand/roadsafe-logo-${theme}.png`} alt="RoadTrack" width="36" height="36" className="w-9 h-9 shrink-0 rounded-[10px] shadow-lg shadow-orange-500/15 ring-1 ring-edge/10" />
           {!collapsed && (
             <div className="min-w-0 leading-tight">
-              <h1 className="text-[15px] font-semibold tracking-tight text-strong">RoadSafe Admin</h1>
+              <h1 className="text-[15px] font-semibold tracking-tight text-strong">RoadTrack Admin</h1>
               <p className="mt-0.5 text-[11px] tracking-wide text-slate-400">Bulacan Command Center</p>
             </div>
           )}

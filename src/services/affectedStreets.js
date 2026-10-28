@@ -1,6 +1,6 @@
 // Fixed ground-distance footprint. Zoom changes only its on-screen size.
 // Nearby streets are illustrative, not a traffic-impact prediction.
-export const ACCIDENT_RADIUS_METRES = 150
+export const ACCIDENT_RADIUS_METRES = 75
 const EARTH_RADIUS = 6378137
 const radians = Math.PI / 180
 const latitudeScale = (latitude) => Math.cos(Math.max(-85, Math.min(85, latitude)) * radians)

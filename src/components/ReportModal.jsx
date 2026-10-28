@@ -4,11 +4,13 @@ import { canCorrectReport, correctionDraft, correctionValues, VEHICLE_TYPES } fr
 import { officerStatuses } from '../models/staffAccess.js'
 import { useEffect, useRef, useState } from 'react'
 import { REPORT_STATUS, ROLES, validCoordinates, formatDateTime, isOfficiallyVerified, officerName } from '../models/report.js'
-import { DUPLICATE_REVIEW_STATUSES, duplicateOriginals } from '../models/reportDuplicates.js'
+import { DUPLICATE_REVIEW_STATUSES, duplicateOriginals, nearbyDuplicateCandidates } from '../models/reportDuplicates.js'
+import { ACCIDENT_RADIUS_METRES } from '../services/affectedStreets.js'
 
 export default function ReportModal({ report, users, onSave, onClose, onViewOnMap, live = false, reports = [], onDuplicate, onOpenOriginal, onCorrect, actorRole = ROLES.ADMIN, viewerId, embedded = false }) {
   const categoryLabel = useCategoryLabel()
   const categories = useCategories()
+  const nearbyDuplicateIds = new Set(nearbyDuplicateCandidates(reports, report).map(candidate => candidate.id))
   const [facts, setFacts] = useState(() => correctionDraft(report))
   const [correctionReason, setCorrectionReason] = useState('')
 
@@ -124,7 +126,7 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
               {officer && statusChoices.includes(REPORT_STATUS.VERIFIED) && <p className="text-slate-400">Verification decision</p>}
               <p className="text-slate-400">Report status: <strong className="text-strong">{report.status}</strong></p>
               <div className="flex flex-wrap gap-2">{statusChoices.map(value => <button key={value} type="button" disabled={saving} aria-pressed={status === value} onClick={event => { if (live && !officer && value === REPORT_STATUS.UNDER_REVIEW && ['Submitted', 'Additional Information Required'].includes(report.status)) return submit(event, value); setStatus(value); setError('') }} className="rounded-lg border border-darkBorder px-3 py-2 text-orange-400 hover:bg-orange-400/10 aria-pressed:bg-orange-400/10 disabled:opacity-50">{actionLabels[value]}</button>)}</div>
-              {status !== report.status && <div role="status" className="rounded-lg border border-orange-400/30 p-3 space-y-2"><p>Pending action: {returningToReview ? 'Return to review' : actionLabels[status]}. Confirm below to save.</p><button type="button" disabled={saving} className="underline" onClick={() => { setStatus(report.status); setError('') }}>Cancel action</button></div>}
+              {status !== report.status && <div role="status" className="flex flex-col items-start gap-3 rounded-lg border border-orange-400/30 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="min-w-0 leading-relaxed">Pending action: {returningToReview ? 'Return to review' : actionLabels[status]}. Confirm below to save.</p><button type="button" disabled={saving} className="shrink-0 rounded-lg border border-darkBorder bg-slate-800 px-4 py-2 font-medium hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => { setStatus(report.status); setError('') }}>Cancel action</button></div>}
               {!officer && !report.isDuplicate && ['Verified', 'Assigned', 'In Progress'].includes(report.status) && <details className="rounded-lg border border-darkBorder p-3 space-y-2"><summary className="cursor-pointer text-slate-400">Administrative correction</summary><p className="text-amber-300">Returning to review clears verification and ends any enforcer assignment. Use only when the report needs another review.</p><button type="button" disabled={saving} onClick={() => { setStatus(REPORT_STATUS.UNDER_REVIEW); setError('') }} className="rounded-lg border border-darkBorder px-3 py-2">Return to review</button></details>}
               {returningToReview && <label className="block">Reason for returning to review<textarea aria-label="Return to review reason" required maxLength={5000} className={control} value={reviewReason} disabled={saving} onChange={e => setReviewReason(e.target.value)} /></label>}
             </section>
@@ -140,8 +142,9 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
           {onDuplicate && !report.isDuplicate && DUPLICATE_REVIEW_STATUSES.includes(report.status) && <section className="space-y-3 border-t border-darkBorder pt-4">
             <h3 className="font-semibold text-strong">Duplicate review</h3>
             <p className="text-slate-400">Confirm both submissions describe the same incident. Marking a duplicate retains this report and rejects it with your reason. Verified or assigned cases must return to review first.</p>
+            {nearbyDuplicateIds.size > 0 && <p role="status" className="rounded-lg border border-amber-400/30 p-3 text-amber-300">Possible duplicates nearby: {nearbyDuplicateIds.size} within {ACCIDENT_RADIUS_METRES} m. Review incident details and times before marking a duplicate. Proximity alone does not confirm a match.</p>}
             <label className="block">Original report<select aria-label="Original report" className={control} value={originalId} disabled={saving} onChange={event => setOriginalId(event.target.value)}>
-              <option value="">Choose original report</option>{duplicateOriginals(reports, report.id).map(r => <option key={r.id} value={r.id}>{r.id} · {categoryLabel(r.categoryId)} · {r.location.address ?? 'Confirmed map location'}</option>)}
+              <option value="">Choose original report</option>{duplicateOriginals(reports, report.id).map(r => <option key={r.id} value={r.id} title={r.id}>#{r.id.length > 16 ? r.id.slice(0, 8) : r.id} · {categoryLabel(r.categoryId)} · {r.location.address ?? 'Confirmed map location'}{nearbyDuplicateIds.has(r.id) ? ' · Possible duplicate (nearby)' : ''}</option>)}
             </select></label>
             <label className="block">Duplicate reason<textarea aria-label="Duplicate reason" maxLength={5000} className={control} value={duplicateReason} disabled={saving} onChange={event => setDuplicateReason(event.target.value)} /></label>
             <button type="button" disabled={saving} onClick={() => duplicateAction()} className="px-3 py-2 bg-amber-800 rounded-lg disabled:opacity-50">Mark as duplicate</button>

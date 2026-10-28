@@ -1,10 +1,25 @@
-import { REPORT_STATUS, ROLES } from './report.js'
+import { REPORT_STATUS, ROLES, validCoordinates } from './report.js'
+import { ACCIDENT_RADIUS_METRES } from '../services/affectedStreets.js'
 
 export const DUPLICATE_REVIEW_STATUSES = Object.freeze([
   REPORT_STATUS.SUBMITTED, REPORT_STATUS.UNDER_REVIEW, REPORT_STATUS.INFORMATION_REQUIRED, REPORT_STATUS.REJECTED,
 ])
 export function duplicateOriginals(reports, reportId) {
   return reports.filter(r => r.id !== reportId && r.status !== REPORT_STATUS.REJECTED && !r.isDuplicate && !r.duplicateOfReportId)
+}
+
+export function nearbyDuplicateCandidates(reports, report) {
+  const origin = report.location?.coordinates
+  if (!validCoordinates(origin)) return []
+  const radians = Math.PI / 180
+  return duplicateOriginals(reports, report.id).filter(candidate => {
+    const point = candidate.location?.coordinates
+    if (!validCoordinates(point)) return false
+    const a = Math.sin((point.latitude - origin.latitude) * radians / 2) ** 2
+      + Math.cos(origin.latitude * radians) * Math.cos(point.latitude * radians)
+      * Math.sin((point.longitude - origin.longitude) * radians / 2) ** 2
+    return 6378137 * 2 * Math.asin(Math.sqrt(Math.min(1, a))) <= ACCIDENT_RADIUS_METRES
+  })
 }
 
 // Demo preview only. Persisted actions use the authorized, versioned RPC.
