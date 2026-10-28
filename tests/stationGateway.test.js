@@ -33,6 +33,18 @@ test('empty country data is not treated as a successful nationwide download', as
   await assert.rejects(fetchStationArea('medical', null, async () => ({ ok: true, json: async () => ({ elements: [] }) }), 'philippines'), /country dataset unavailable/)
 })
 
+test('bundled hosting snapshots serve stale geography immediately with its real date', async () => {
+  const savedAt = Date.now() - 8 * 86400000
+  let calls = 0
+  const result = await nationwideStations('police', () => { calls++; throw Error('must not fetch') }, {
+    preferSaved: true,
+    read: async () => ({ savedAt, elements: [{ id: 17 }] }),
+  })
+  assert.deepEqual(result.elements, [{ id: 17 }])
+  assert.ok(result.warning.includes(new Date(savedAt).toISOString().slice(0, 10)))
+  assert.equal(calls, 0)
+})
+
 test('gateway identifies RoadSafe upstream and fails over without exposing CORS to the browser', async () => {
   const calls = []
   const result = await fetchStationArea('police', bounds, async (url, options) => {

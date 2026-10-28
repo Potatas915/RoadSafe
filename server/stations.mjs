@@ -38,7 +38,10 @@ export async function nationwideStations(type, request, snapshotIO) {
   const file = new URL(`../.cache/stations/${type}-philippines.json`, import.meta.url)
   let saved
   try { saved = snapshotIO ? await snapshotIO.read() : JSON.parse(await readFile(file, 'utf8')); if (!Number.isFinite(saved.savedAt) || !Array.isArray(saved.elements) || saved.elements.length === 0) saved = null } catch { /* First download has no snapshot. */ }
-  if (saved && Date.now() - saved.savedAt < 7 * 86400000) return { elements: saved.elements }
+  if (saved && (Date.now() - saved.savedAt < 7 * 86400000 || snapshotIO?.preferSaved)) {
+    return { elements: saved.elements, ...(Date.now() - saved.savedAt >= 7 * 86400000
+      ? { warning: `Using saved station geography from ${new Date(saved.savedAt).toISOString().slice(0, 10)}. Station updates require a refreshed snapshot deployment.` } : {}) }
+  }
   try {
     const data = await fetchStationArea(type, null, request, 'philippines')
     try {
@@ -53,7 +56,7 @@ export async function nationwideStations(type, request, snapshotIO) {
   }
 }
 
-export function stationMiddleware(request = fetch) {
+export function stationMiddleware(request = fetch, snapshotForType) {
   return async (req, res, next) => {
     const url = new URL(req.url, 'http://localhost')
     if (url.pathname !== '/api/stations') return next()
@@ -70,7 +73,7 @@ export function stationMiddleware(request = fetch) {
     let entry = cache.get(key)
     if (!entry || Date.now() - entry.savedAt > 7 * 86400000) {
       if (cache.size >= 48) cache.delete(cache.keys().next().value)
-      entry = { savedAt: Date.now(), promise: scope === 'philippines' ? nationwideStations(type, request) : fetchStationArea(type, bounds, request) }
+      entry = { savedAt: Date.now(), promise: scope === 'philippines' ? nationwideStations(type, request, snapshotForType?.(type)) : fetchStationArea(type, bounds, request) }
       cache.set(key, entry)
     }
     try { const data = await entry.promise; if (!res.destroyed) res.end(JSON.stringify(data)) }

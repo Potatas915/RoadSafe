@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/stations.js": {
+      "maxDuration": 150,
+      "includeFiles": "server/station-snapshots/*.json"
+    }
+  }
+}
