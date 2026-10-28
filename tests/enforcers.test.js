@@ -143,14 +143,32 @@ test('station assignment carries server version/station and refuses demo-ineligi
   let calls = 0
   const client = { rpc: async (name, args) => {
     calls++
-    assert.equal(name, 'assign_station_enforcer')
-    assert.deepEqual(args, { p_id: 'report', p_officer: 'staff', p_station: 'node/1', p_version: 4 })
+    if (calls === 1) {
+      assert.equal(name, 'assign_station_enforcer')
+      assert.deepEqual(args, { p_id: 'report', p_officer: 'staff', p_station: 'node/1', p_version: 4 })
+    } else {
+      assert.equal(name, 'update_accident_report')
+      assert.deepEqual(args, { p_id: 'report', p_officer: 'staff', p_version: 5, p_status: 'In Progress', p_remarks: '', p_reason: null })
+    }
     return {}
   } }
   await assignStationEnforcer(client, report, 'node/1', 'staff')
   for (const bad of [null, { ...report, status: 'Submitted' }, { ...report, assignedOfficerId: 'other' }, { ...report, isDuplicate: true }]) await assert.rejects(assignStationEnforcer(client, bad, 'node/1', 'staff'))
-  assert.equal(calls, 1)
+  assert.equal(calls, 2)
   await assert.rejects(assignStationEnforcer({ rpc: async () => ({ error: new Error('Enforcer went offline') }) }, report, 'node/1', 'staff'), /offline/)
+})
+
+test('deployment preserves saved remarks and reports partial response failure without replaying assignment', async () => {
+  const calls = []
+  const client = { rpc: async (name, args) => {
+    calls.push(name)
+    if (name === 'assign_station_enforcer') return {}
+    assert.equal(args.p_remarks, 'Verified by staff')
+    assert.equal(args.p_version, 8)
+    return { error: new Error('Version conflict') }
+  } }
+  await assert.rejects(assignStationEnforcer(client, { id: 'case', status: 'Verified', version: 7, officialRemarks: 'Verified by staff' }, 'station', 'officer'), /assigned.*response.*Refresh/i)
+  assert.deepEqual(calls, ['assign_station_enforcer', 'update_accident_report'])
 })
 
 test('actual station panel escapes names, excludes offline/busy officers and blocks sample assignment', () => {

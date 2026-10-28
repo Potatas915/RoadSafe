@@ -17,7 +17,15 @@ export async function loadStationEnforcers(client, stationId) {
 export const availableEnforcer = row => row.online && row.onDuty && !row.busy
 export async function assignStationEnforcer(client, report, stationId, officerId) {
   if (!report || report.status !== 'Verified' || report.assignedOfficerId || report.isDuplicate) throw new Error('Select an unassigned, verified shared report.')
-  return rpc(client, 'assign_station_enforcer', { p_id: report.id, p_officer: officerId, p_station: stationId, p_version: report.version })
+  await rpc(client, 'assign_station_enforcer', { p_id: report.id, p_officer: officerId, p_station: stationId, p_version: report.version })
+  try {
+    await saveReportReview(client, { ...report, version: report.version + 1 }, {
+      status: 'In Progress', assignedOfficerId: officerId,
+      officialRemarks: report.officialRemarks ?? '', rejectionReason: null,
+    })
+  } catch (error) {
+    throw new Error(`Enforcer assigned, but response progress could not be saved. Refresh the report before continuing: ${error.message}`)
+  }
 }
 export async function cancelStationEnforcer(client, report, completed = false) {
   if (!report) throw new Error('Refresh shared reports before cancelling this request.')
