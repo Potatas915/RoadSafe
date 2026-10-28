@@ -132,7 +132,7 @@ export default function ReportModal({ report, users, onSave, onClose, onViewOnMa
             </section>
             {!officer && <section aria-label="Assigned enforcer" className="rounded-xl border border-darkBorder bg-darkBg p-3 space-y-2">
               <h3 className="text-slate-400">Assigned enforcer</h3>
-              <p className="font-semibold text-strong">{assignedOfficerId ? assignedEnforcer ? `${assignedEnforcer.name}${assignedEnforcer.unit ? ` · ${assignedEnforcer.unit}` : ''}` : 'Assigned enforcer details unavailable' : 'No enforcer assigned'}</p>
+              <p className="font-semibold text-strong">{assignedOfficerId ? assignedEnforcer ? `${assignedEnforcer.name}${assignedEnforcer.unit && assignedEnforcer.unit !== 'Unassigned' ? ` · Unit: ${assignedEnforcer.unit}` : ''}` : 'Assigned enforcer details unavailable' : 'No enforcer assigned'}</p>
               <p className="text-slate-400">{assignedOfficerId ? `Case status: ${report.status}. Progress is updated in the enforcer's mobile workspace.` : report.status !== 'Verified' ? 'Verify this report before assigning an enforcer.' : live ? 'Choose a station and an available enforcer on the Tactical Map.' : 'Demo preview only. Choose Shared reports to assign an enforcer.'}</p>
               {onViewOnMap && validCoordinates(coords) && <button type="button" disabled={saving} onClick={() => onViewOnMap(report)} className="rounded-lg border border-orange-400/30 px-3 py-2 text-orange-400 hover:bg-orange-400/10 disabled:opacity-50">{assignedOfficerId ? 'View assignment on map' : live && report.status === 'Verified' && !report.isDuplicate ? 'Assign on map' : 'View on map'}</button>}
             </section>}

@@ -359,3 +359,16 @@ test('dispatch subtitles follow assigned cases instead of the legacy Unassigned 
   assert.ok(!render([{ ...assigned, status: 'Resolved / Closed' }]).includes('1 active case'))
   assert.match(render([assigned], { ...officer, unit: 'Traffic Unit A' }), /Unit: Traffic Unit A/)
 })
+
+test('assigned report details omit the unassigned unit placeholder', () => {
+  const report = { ...first, status: 'Assigned', assignedOfficerId: 'assigned-test' }
+  for (const unit of ['Unassigned', '', 'UNIT-12']) {
+    const users = [{ id: 'assigned-test', name: 'Olivia Estrella', unit }]
+    const detail = renderToStaticMarkup(React.createElement(ReportModal, { report, users }))
+    const table = renderToStaticMarkup(React.createElement(ReportsView, { reports: [report], users }))
+    assert.match(detail, /Olivia Estrella/)
+    assert.match(table, /Olivia Estrella/)
+    assert.doesNotMatch(detail, /Olivia Estrella · Unassigned/)
+    if (unit === 'UNIT-12') assert.match(detail, /Olivia Estrella · Unit: UNIT-12/)
+  }
+})
