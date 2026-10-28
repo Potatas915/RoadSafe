@@ -60,11 +60,10 @@ test('renamed disabled categories retain historical reports, filters, details, a
     assert.match(html, /Road collision/)
   }
 })
-test('settings shows fixed IDs and disables shared edits without Admin live mode', () => {
-  const SettingsView = component('../src/components/SettingsView.jsx')
-  const html = renderToStaticMarkup(React.createElement(SettingsView, { categories: catalog(), live: false }))
-  assert.match(html, /Stable ID: collision/)
-  assert.match(html, /sign in as an Administrator/)
-  assert.equal((html.match(/disabled=""/g) ?? []).length, 6)
-  assert.match(html, /historical reports/)
+test('category settings screen and sidebar gear are removed while catalog loading remains', () => {
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8')
+  const sidebar = readFileSync(new URL('../src/components/Sidebar.jsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(app, /SettingsView|settings-view|saveCategory/)
+  assert.doesNotMatch(sidebar, /System Settings|settings-view|fa-gear/)
+  assert.match(app, /loadCategories\(backend\)/)
 })

@@ -67,9 +67,6 @@ export default function Sidebar({ view, onChange, pendingCount, currentUser, liv
             </div>
           )}
         </div>
-        <button title="System Settings" aria-label="System Settings" onClick={() => onChange('settings-view')} className="text-slate-400 hover:text-strong transition">
-          <i className="fa-solid fa-gear"></i>
-        </button>
       </div>
     </aside>
   )

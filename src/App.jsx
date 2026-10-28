@@ -18,9 +18,8 @@ import { loadReportFeed, saveReportReview, saveReportDuplicate, saveReportCorrec
 import ManagerAuth from './backend/ManagerAuth.jsx'
 import useNotifications from './hooks/useNotifications.js'
 import { ACCIDENT_CATEGORIES } from './models/report.js'
-import { loadCategories, saveCategory } from './backend/categories.js'
+import { loadCategories } from './backend/categories.js'
 import { CategoryContext } from './components/CategoryContext.js'
-import SettingsView from './components/SettingsView.jsx'
 import AuthLanding from './components/AuthLanding.jsx'
 
 export default function App() {
@@ -50,11 +49,6 @@ function ManagerDashboard({ signedInUser }) {
     const timer = live ? setInterval(refreshCategories, 15000) : null
     return () => clearInterval(timer)
   }, [live, refreshCategories])
-  async function updateCategory(category, patch) {
-    if (!live) throw new Error('Administrator sign-in required.')
-    const saved = await saveCategory(backend, category, patch)
-    setCategories(previous => previous.map(row => row.id === saved.id ? { ...row, ...saved } : row))
-  }
   const [view, setView] = useState('map-view')
   const [searchLocation, setSearchLocation] = useState(null)
   const [activeReport, setActiveReport] = useState(null)
@@ -138,8 +132,7 @@ function ManagerDashboard({ signedInUser }) {
       <div className="roadsafe-stage flex-1 flex flex-col relative overflow-hidden bg-darkBg min-w-0">
         <TopBar mapSearch={view === 'map-view'} onLocationSelect={setSearchLocation} onSignOut={() => backend.auth.signOut()} live={live} notifications={notifications} unreadCount={unreadCount} onReadNotifications={markRead} notificationStorageWarning={storageWarning} onOpenNotificationReport={(id, accountId) => { if (accountId) { setView('accounts-view'); return }; setView('reports-view'); setActiveReport(id) }} />
         <p className="sr-only" role="status">{source}</p>
-        {categoryError && view !== 'settings-view' && <p role="alert" className="px-6 py-2 text-amber-300 text-xs">{categoryError}</p>}
-        {view === 'settings-view' && <SettingsView categories={categories} onSave={updateCategory} error={categoryError} onRefresh={refreshCategories} live={live} />}
+        {categoryError && <p role="alert" className="px-6 py-2 text-amber-300 text-xs">{categoryError}</p>}
         <div style={{ display: view === 'map-view' ? 'flex' : 'none', flex: 1, minHeight: 0, minWidth: 0 }}>
           <MapView searchLocation={searchLocation} reportRecords={displayed.data} users={displayed.included.users} onOpenReport={setActiveReport} enforcerClient={live ? backend : null} onAssigned={refresh} />
         </div>
