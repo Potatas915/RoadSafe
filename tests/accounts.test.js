@@ -260,3 +260,16 @@ test('all account types use compact IDs in details while retaining the full tool
     assert.ok(!html.includes(`>${id}<`))
   }
 })
+
+test('details display signup contacts without a test placeholder suffix', () => {
+  const Details = component('../src/components/AccountDetails.jsx').default
+  for (const role of ['Public', 'Officer']) {
+    const html = renderToStaticMarkup(React.createElement(Details, { account: { ...account, role, email: 'resident@example.com', mobileNumber: '09171234567', mobileNumberIsTest: false } }))
+    assert.match(html, /Contact details/)
+    assert.match(html, /resident@example.com/)
+    assert.match(html, /09171234567/)
+  }
+  const testNumber = renderToStaticMarkup(React.createElement(Details, { account: { ...account, mobileNumber: '09000000000', mobileNumberIsTest: true } }))
+  assert.match(testNumber, />09000000000<\/dd>/)
+  assert.doesNotMatch(testNumber, /Test placeholder/)
+})

@@ -14,6 +14,10 @@ export default function AccountDetails({ account, onClose, returnFocusRef }) {
     ['Username', account.username ?? 'Legacy account'],
     ['Account ID', account.id],
   ]
+  const contact = [
+    ['Email', account.email || 'Not provided'],
+    ['Mobile number', account.mobileNumber || 'Not provided'],
+  ]
   const affiliation = [
     ['Approval', account.role === 'Officer' ? 'Approved' : 'Awaiting verification'],
     ['Station', account.station?.name ?? 'No station selected'],
@@ -39,6 +43,7 @@ export default function AccountDetails({ account, onClose, returnFocusRef }) {
           </div>
         </section>
         <section aria-label="Account identity" className="space-y-4 rounded-xl border border-darkBorder p-4"><h3 className="font-semibold text-strong">Account identity</h3>{details(fields)}</section>
+        <section aria-label="Contact details" className="space-y-4 rounded-xl border border-darkBorder p-4"><h3 className="font-semibold text-strong">Contact details</h3>{details(contact)}</section>
         {enforcer && <section aria-label="Enforcer affiliation" className="space-y-4 rounded-xl border border-darkBorder p-4"><h3 className="font-semibold text-strong">Enforcer affiliation</h3>{details(affiliation)}</section>}
       </div>
       <footer className="flex shrink-0 justify-end border-t border-darkBorder bg-darkBg p-4 sm:px-6"><button type="button" onClick={onClose} className="dx-btn dx-btn-inline">Close</button></footer>

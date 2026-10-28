@@ -22,6 +22,8 @@ export function parseAccounts(page) {
       || !['name','unit'].every(key => typeof row[key] === 'string' && row[key].trim())
       || !['police','medical'].includes(row.responderType)
       || (row.station != null && (typeof row.station !== 'object' || typeof row.station.id !== 'string' || !row.station.id.trim() || typeof row.station.name !== 'string' || !row.station.name.trim() || typeof row.station.address !== 'string'))
+      || ['email', 'mobileNumber'].some(key => row[key] != null && typeof row[key] !== 'string')
+      || (row.mobileNumberIsTest != null && typeof row.mobileNumberIsTest !== 'boolean')
       || !(row.username === null || typeof row.username === 'string')) throw new Error('Invalid account response.')
     ids.add(row.id)
   }
